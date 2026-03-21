@@ -93,7 +93,38 @@ After:
 }
 ```
 
-**Example 3**: bioRxiv preprint duplicated with published version.
+**Example 3**: arXiv preprint upgraded to published version with title change.
+
+Before:
+```bibtex
+@article{khader2022medical,
+  title={Medical Diffusion--Denoising Diffusion Probabilistic Models for 3D Medical Image Generation},
+  author={Khader, Firas and Mueller-Franzes, Gustav and Arasteh, Soroosh Tayebi and Han, Tianyu and Haarburger, Christoph and Schulze-Hagen, Maximilian and Schad, Philipp and Engelhardt, Sandy and Baessler, Bettina and Foersch, Sebastian and others},
+  journal={arXiv preprint arXiv:2211.03364},
+  year={2022}
+}
+```
+
+After:
+```bibtex
+% @article{khader2022medical,
+%   title={Medical Diffusion--Denoising Diffusion Probabilistic Models for 3D Medical Image Generation},
+%   author={Khader, Firas and Mueller-Franzes, Gustav and Arasteh, Soroosh Tayebi and Han, Tianyu and Haarburger, Christoph and Schulze-Hagen, Maximilian and Schad, Philipp and Engelhardt, Sandy and Baessler, Bettina and Foersch, Sebastian and others},
+%   journal={arXiv preprint arXiv:2211.03364},
+%   year={2022}
+% }
+% bibtidy: source https://doi.org/10.1038/s41598-023-34341-2
+% bibtidy: updated from arXiv to published version (Scientific Reports 2023), title updated
+@article{khader2022medical,
+  title={Denoising Diffusion Probabilistic Models for 3D Medical Image Generation},
+  author={Khader, Firas and Mueller-Franzes, Gustav and Arasteh, Soroosh Tayebi and Han, Tianyu and Haarburger, Christoph and Schulze-Hagen, Maximilian and Schad, Philipp and Engelhardt, Sandy and Baessler, Bettina and Foersch, Sebastian and others},
+  journal={Scientific Reports},
+  volume={13},
+  year={2023}
+}
+```
+
+**Example 4**: bioRxiv preprint duplicated with published version.
 
 Before:
 ```bibtex

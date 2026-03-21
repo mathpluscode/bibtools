@@ -68,7 +68,9 @@ These do not need comments or commented-out originals:
 
 If the journal/venue contains "arxiv", "biorxiv", or "chemrxiv" (case-insensitive):
 - Search for the title on CrossRef or conference proceedings
-- If a peer-reviewed version exists (different venue, has DOI), update the entry
+- If a peer-reviewed version exists (different venue, has DOI), update the entry:
+  - Update the title to match the published version (it may differ from the preprint title)
+  - Update venue, year, volume, pages, and entry type as needed
 - Only update if confirmed via DOI or two independent sources agreeing
 
 ### 5. Apply metadata fixes with commented-out originals
@@ -78,7 +80,9 @@ For non-trivial changes (author, year, venue, pages, preprint upgrades):
   - CrossRef DOI metadata confirms the change, OR
   - Two independent authoritative sources agree (CrossRef, OpenReview, DBLP, ACL Anthology, publisher sites, conference proceedings)
 - If sources conflict, data is incomplete, or only one non-DOI source is available, add a `% bibtidy: REVIEW` comment instead of changing the field
-- Comment out the entire original entry with `%`, then add `% bibtidy:` comments (source URL + explanation), then the corrected entry:
+- Comment out the entire original entry with `%`, then add `% bibtidy:` comments (source URL + explanation), then the corrected entry.
+- **Every non-trivial change MUST include a `% bibtidy: source <URL>` line** with a DOI link (e.g. `https://doi.org/...`), OpenReview link, or other authoritative URL. Never omit the source URL — it is the evidence for the change.
+- **The `% bibtidy:` explanation comments must accurately describe all changes** actually made to the entry (title, venue, year, pages, type, etc.). Do not say "updated to X" if the output shows Y.
 
 ```
 % @article{key,
@@ -116,5 +120,6 @@ For entries with no changes, do not add any comments.
 - Preserve existing user comments (lines starting with `%` that don't start with `% bibtidy:`).
 - Preserve `@string`, `@preamble`, `@comment` blocks verbatim.
 - Preserve LaTeX macros and brace-protected capitalization in titles.
+- Preserve empty lines between entries exactly as they appear — do not add or remove blank lines.
 - If you hit rate limits on any API, note it and continue with the next entry.
 - For large files (>30 entries), process in batches and report progress.

@@ -1,6 +1,6 @@
 # bibtidy
 
-A Claude Code skill that verifies the *content* of each bib entry — not just that your `\cite` keys match — catching wrong authors, wrong years, stale arXiv preprints, and incorrect page ranges.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that verifies each BibTeX entry exists and checks its metadata against publisher databases — catching wrong authors, wrong years, stale arXiv preprints, and incorrect page numbers.
 
 ## Install
 
@@ -16,9 +16,9 @@ From the plugin marketplace:
 /bibtidy refs.bib
 ```
 
-bibtidy searches Google Scholar and CrossRef for each entry, fixes errors, and upgrades stale preprints to published versions. Google Scholar is accessed via the WebSearch tool when available; CrossRef is always available via the bundled script. Every change — whether a page hyphen fix or a preprint upgrade — includes the original entry commented out above so you can compare or revert, plus a `% bibtidy: source` URL for verification. We recommend using git to track changes.
+bibtidy verifies each entry against [Google Scholar](https://scholar.google.com/) and [CrossRef](https://search.crossref.org/), fixes errors, and upgrades stale preprints to published versions. Every change includes the original entry commented out above so you can compare or revert, plus a `% bibtidy: source` URL for verification. We recommend using git to track changes. If using [Overleaf](https://www.overleaf.com/), this can be done with [git sync](https://docs.overleaf.com/integrations-and-add-ons/git-integration-and-github-synchronization).
 
-To remove bibtidy comments after review, just ask Claude: "remove all bibtidy comments from refs.bib"
+To remove bibtidy comments after review, ask Claude: "remove all bibtidy comments from refs.bib"
 
 ## Examples
 

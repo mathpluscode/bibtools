@@ -134,11 +134,7 @@ def fetch_doi(doi: str, timeout: int = 10) -> dict:
 
 def search_title(title: str, rows: int = 3, timeout: int = 10) -> dict:
     """Search CrossRef by title, returning up to `rows` results."""
-    params = urllib.parse.urlencode({
-        "query.bibliographic": title,
-        "rows": rows,
-        "mailto": MAILTO,
-    })
+    params = urllib.parse.urlencode({"query.bibliographic": title, "rows": rows, "mailto": MAILTO})
     url = f"{CROSSREF_API}/works?{params}"
     result = _safe_fetch(url, timeout)
     if "error" in result:
@@ -151,15 +147,8 @@ def search_title(title: str, rows: int = 3, timeout: int = 10) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="CrossRef API utilities for BibTeX validation"
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=10,
-        help="HTTP request timeout in seconds (default: 10)",
-    )
+    parser = argparse.ArgumentParser(description="CrossRef API utilities for BibTeX validation")
+    parser.add_argument("--timeout", type=int, default=10, help="HTTP request timeout in seconds")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     doi_parser = subparsers.add_parser("doi", help="Fetch metadata for a DOI")

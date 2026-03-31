@@ -61,8 +61,7 @@ def parse_entries(text):
         context_start = entry_start - 1
         context_lines = []
         while context_start >= context_boundary and (
-            lines[context_start].startswith("%")
-            or lines[context_start].strip() == ""
+            lines[context_start].startswith("%") or lines[context_start].strip() == ""
         ):
             context_lines.insert(0, lines[context_start])
             context_start -= 1
@@ -91,17 +90,11 @@ def check_changed_entry(key, context):
     if not has_open:
         errors.append("Missing commented-out original entry")
     elif not has_close:
-        errors.append(
-            "Commented-out original appears incomplete "
-            "(missing closing '% }' line)"
-        )
+        errors.append("Commented-out original appears incomplete (missing closing '% }' line)")
 
     # Check 2: % bibtidy: source <URL>
     if not re.search(r"^% bibtidy: source https?://", context, re.MULTILINE):
-        errors.append(
-            'Missing "% bibtidy: source <URL>" line '
-            "(found bare URL without prefix?)"
-        )
+        errors.append('Missing "% bibtidy: source <URL>" line (found bare URL without prefix?)')
 
     # Check 3: % bibtidy: <explanation>
     bibtidy_lines = re.findall(r"^% bibtidy: (?!source )(.+)", context, re.MULTILINE)
@@ -144,8 +137,7 @@ def main():
         else:
             # Without original, check if there are bibtidy comments
             has_comments = bool(
-                re.search(r"% bibtidy:", context) or
-                re.search(rf"^% @\w+\{{{re.escape(key)},", context, re.MULTILINE)
+                re.search(r"% bibtidy:", context) or re.search(rf"^% @\w+\{{{re.escape(key)},", context, re.MULTILINE)
             )
             changed = has_comments
 
@@ -157,14 +149,10 @@ def main():
             # Unchanged entries should have NO bibtidy comments
             # Exception: DUPLICATE flags are allowed on unchanged entries
             non_duplicate_comments = [
-                line for line in context.split("\n")
-                if re.match(r"^% bibtidy:", line)
-                and "DUPLICATE" not in line
+                line for line in context.split("\n") if re.match(r"^% bibtidy:", line) and "DUPLICATE" not in line
             ]
             if non_duplicate_comments:
-                all_errors.append(
-                    f"  [{key}] Unchanged entry has bibtidy comments (should have none)"
-                )
+                all_errors.append(f"  [{key}] Unchanged entry has bibtidy comments (should have none)")
 
     if all_errors:
         print("FORMAT VIOLATIONS FOUND:")

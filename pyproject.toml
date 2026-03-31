@@ -6,7 +6,11 @@ requires-python = ">=3.10"
 license = "MIT"
 
 [dependency-groups]
-dev = ["pytest>=7.0"]
+dev = [
+    "pre-commit>=4.5.1",
+    "pytest>=7.0",
+    "ruff>=0.15.8",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -14,3 +18,9 @@ pythonpath = [
     "skills/bibtidy/tools",
     "tests",
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true

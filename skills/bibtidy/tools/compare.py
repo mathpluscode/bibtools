@@ -83,12 +83,7 @@ def compare_entry(entry: dict, crossref: dict) -> list[dict]:
     mismatches = []
 
     def _add(field, bib_val, cr_val, severity="fix"):
-        mismatches.append({
-            "field": field,
-            "bib_value": bib_val,
-            "crossref_value": cr_val,
-            "severity": severity,
-        })
+        mismatches.append({"field": field, "bib_value": bib_val, "crossref_value": cr_val, "severity": severity})
 
     # Title
     bib_title = entry.get("title", "")
@@ -110,8 +105,7 @@ def compare_entry(entry: dict, crossref: dict) -> list[dict]:
         extra_in_bib = bib_set - cr_set
         missing_from_bib = cr_set - bib_set
         if extra_in_bib or (missing_from_bib and len(bib_names) >= len(cr_names)):
-            _add("author", bib_author,
-                 " and ".join(cr_authors), "review")
+            _add("author", bib_author, " and ".join(cr_authors), "review")
 
     # Year
     bib_year = entry.get("year", "").strip()
@@ -124,9 +118,7 @@ def compare_entry(entry: dict, crossref: dict) -> list[dict]:
     bib_venue = entry.get(bib_venue_field, "") if bib_venue_field else ""
     cr_venue = crossref.get("journal") or ""
     if bib_venue and cr_venue:
-        is_preprint = re.search(
-            r"\b(arxiv|biorxiv|chemrxiv)\b", bib_venue, re.IGNORECASE
-        )
+        is_preprint = re.search(r"\b(arxiv|biorxiv|chemrxiv)\b", bib_venue, re.IGNORECASE)
         if is_preprint:
             # Preprint upgraded to published venue
             if not re.search(r"\b(arxiv|biorxiv|chemrxiv)\b", cr_venue, re.IGNORECASE):
@@ -221,15 +213,10 @@ def lookup_and_compare(entry: dict, timeout: int = 10) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare BibTeX entries against CrossRef metadata"
-    )
+    parser = argparse.ArgumentParser(description="Compare BibTeX entries against CrossRef metadata")
     parser.add_argument("bibfile", help="Path to .bib file")
     parser.add_argument("--key", help="Only compare this citation key")
-    parser.add_argument(
-        "--timeout", type=int, default=10,
-        help="HTTP timeout in seconds (default: 10)",
-    )
+    parser.add_argument("--timeout", type=int, default=10, help="HTTP timeout in seconds")
     args = parser.parse_args()
 
     try:

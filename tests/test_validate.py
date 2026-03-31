@@ -11,22 +11,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from duplicates import parse_bib_entries
 
-from validate import (
-    find_entry_block,
-    find_commented_entry,
-    get_field,
-    has_bibtidy_comment,
-    has_source_url,
-)
+from validate import find_entry_block, find_commented_entry, get_field, has_bibtidy_comment, has_source_url
 
 
-SAMPLE_ENTRY = (
-    "@article{Smith2020,\n"
-    "  title={A {Nested} Title},\n"
-    "  author={Smith, John},\n"
-    "  year={2020}\n"
-    "}"
-)
+SAMPLE_ENTRY = "@article{Smith2020,\n  title={A {Nested} Title},\n  author={Smith, John},\n  year={2020}\n}"
 
 SAMPLE_CHANGED = (
     "% @article{Smith2020,\n"
@@ -108,12 +96,7 @@ class TestHasBibtidyComment:
         assert has_source_url(SAMPLE_ENTRY, "Smith2020") is False
 
     def test_duplicate_flag(self):
-        text = (
-            "% bibtidy: DUPLICATE of Other — consider removing\n"
-            "@article{Dup,\n"
-            "  title={Test}\n"
-            "}"
-        )
+        text = "% bibtidy: DUPLICATE of Other — consider removing\n@article{Dup,\n  title={Test}\n}"
         assert has_bibtidy_comment(text, "Dup", r"DUPLICATE") is True
 
 
@@ -132,10 +115,7 @@ EXPECTED_DIFFS = {
             "Estimation of non-normalized statistical models by score matching.",
             "Estimation of non-normalized statistical models by score matching",
         ),
-        "author": (
-            'Hyv{\\"a}rinen, Aapo and Dayan, Peter',
-            'Hyv{\\"a}rinen, Aapo',
-        ),
+        "author": ('Hyv{\\"a}rinen, Aapo and Dayan, Peter', 'Hyv{\\"a}rinen, Aapo'),
         "number": ("4", "24"),
     },
     "lipman2022flow": {
@@ -148,9 +128,7 @@ EXPECTED_DIFFS = {
         "pages": ("6840-6851", "6840--6851"),
         "doi": ("https://doi.org/10.48550/arXiv.2006.11239", "10.48550/arXiv.2006.11239"),
     },
-    "strudel2021segmenter": {
-        "pages": ("7262--7272", "7242--7252"),
-    },
+    "strudel2021segmenter": {"pages": ("7262--7272", "7242--7252")},
     "khader2022medical": {
         "title": (
             "Medical Diffusion--Denoising Diffusion Probabilistic Models for 3D Medical Image Generation",
@@ -194,16 +172,11 @@ class TestFixtureDiffs:
                     continue
                 declared = EXPECTED_DIFFS.get(key, {}).get(field)
                 if declared is None:
-                    undeclared.append(
-                        f"  {key}.{field}: {iv!r} → {ev!r} (not in EXPECTED_DIFFS)"
-                    )
+                    undeclared.append(f"  {key}.{field}: {iv!r} → {ev!r} (not in EXPECTED_DIFFS)")
                 elif declared != (iv, ev):
-                    undeclared.append(
-                        f"  {key}.{field}: declared {declared} but actual {(iv, ev)}"
-                    )
-        assert not undeclared, (
-            "Undeclared field differences between input.bib and expected.bib:\n"
-            + "\n".join(undeclared)
+                    undeclared.append(f"  {key}.{field}: declared {declared} but actual {(iv, ev)}")
+        assert not undeclared, "Undeclared field differences between input.bib and expected.bib:\n" + "\n".join(
+            undeclared
         )
 
     def test_no_stale_diffs(self, entries):
@@ -220,10 +193,5 @@ class TestFixtureDiffs:
                 iv = inp.get(field)
                 ev = exp.get(field)
                 if (iv, ev) != (old, new):
-                    stale.append(
-                        f"  {key}.{field}: declared ({old!r}, {new!r}) "
-                        f"but actual ({iv!r}, {ev!r})"
-                    )
-        assert not stale, (
-            "Stale entries in EXPECTED_DIFFS:\n" + "\n".join(stale)
-        )
+                    stale.append(f"  {key}.{field}: declared ({old!r}, {new!r}) but actual ({iv!r}, {ev!r})")
+        assert not stale, "Stale entries in EXPECTED_DIFFS:\n" + "\n".join(stale)

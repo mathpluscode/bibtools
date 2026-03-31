@@ -5,28 +5,19 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 
-import pytest
 
-sys.path.insert(
-    0,
-    os.path.join(
-        os.path.dirname(__file__), "..",
-        "skills", "bibtidy", "tools",
-    ),
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "bibtidy", "tools"))
 
 from duplicates import find_duplicates, is_preprint, normalize_title, parse_bib_entries
 
-TOOL_PATH = os.path.join(
-    os.path.dirname(__file__), "..",
-    "skills", "bibtidy", "tools", "duplicates.py",
-)
+TOOL_PATH = os.path.join(os.path.dirname(__file__), "..", "skills", "bibtidy", "tools", "duplicates.py")
+
 
 def _run(bib_text):
     """Parse *bib_text* and return the list of duplicate dicts."""
     return find_duplicates(parse_bib_entries(bib_text))
+
 
 class TestSameKey:
     def test_exact_duplicate_key(self):
@@ -57,6 +48,7 @@ class TestSameKey:
         same_key = [d for d in _run(bib) if d["type"] == "same_key"]
         assert len(same_key) == 3  # 3 entries -> 3 pairs
 
+
 class TestSameDOI:
     def test_same_doi_different_keys(self):
         bib = """
@@ -74,6 +66,7 @@ class TestSameDOI:
 """
         same_doi = [d for d in _run(bib) if d["type"] == "same_doi"]
         assert len(same_doi) == 1
+
 
 class TestSameTitle:
     def test_normalized_match(self):
@@ -105,6 +98,7 @@ class TestSameTitle:
 """
         assert len([d for d in _run(bib) if d["type"] == "same_title"]) == 0
 
+
 class TestPreprintPublished:
     def test_arxiv_and_journal(self):
         bib = """
@@ -130,6 +124,7 @@ class TestPreprintPublished:
 """
         assert len([d for d in _run(bib) if d["type"] == "preprint_published"]) == 1
 
+
 class TestNoDuplicates:
     def test_empty_file(self):
         assert _run("") == []
@@ -144,6 +139,7 @@ class TestNoDuplicates:
 @article{C, title={Gamma}, doi={10.1/c}, journal={J3}}
 """
         assert _run(bib) == []
+
 
 class TestLatexNormalization:
     def test_textbf_stripped(self):
@@ -178,6 +174,7 @@ class TestLatexNormalization:
 """
         assert len([d for d in _run(bib) if d["type"] == "same_title"]) == 1
 
+
 class TestExpandedPreprintDetection:
     def test_eprint_field(self):
         entry = {"key": "X", "eprint": "2301.12345", "archiveprefix": "arXiv"}
@@ -202,6 +199,7 @@ class TestExpandedPreprintDetection:
     def test_not_preprint(self):
         entry = {"key": "X", "journal": "Nature"}
         assert is_preprint(entry) is False
+
 
 class TestSkipSpecialBlocks:
     def test_string_preamble_comment_skipped(self):
@@ -228,6 +226,7 @@ class TestSkipSpecialBlocks:
 """
         assert _run(bib) == []
 
+
 class TestCLI:
     def test_cli_output_json(self, tmp_path):
         bib_file = tmp_path / "test.bib"
@@ -235,10 +234,7 @@ class TestCLI:
 @article{Dup, title={Same}, year={2020}}
 @article{Dup, title={Other}, year={2021}}
 """)
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH, str(bib_file)],
-            capture_output=True, text=True,
-        )
+        result = subprocess.run([sys.executable, TOOL_PATH, str(bib_file)], capture_output=True, text=True)
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert isinstance(data, list)
@@ -246,11 +242,9 @@ class TestCLI:
         assert data[0]["type"] == "same_key"
 
     def test_cli_no_args(self):
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH],
-            capture_output=True, text=True,
-        )
+        result = subprocess.run([sys.executable, TOOL_PATH], capture_output=True, text=True)
         assert result.returncode != 0
+
 
 class TestQuotedValues:
     def test_quoted_doi(self):

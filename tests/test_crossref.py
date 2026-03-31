@@ -6,19 +6,10 @@ import os
 import sys
 from unittest.mock import patch
 
-import pytest
 import urllib.error
 
 # Ensure the crossref module is importable.
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__), os.pardir,
-            "skills", "bibtidy", "tools",
-        )
-    ),
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "skills", "bibtidy", "tools")))
 
 import crossref
 
@@ -27,10 +18,7 @@ SAMPLE_WORK_ITEM = {
     "URL": "https://doi.org/10.1234/example.2024",
     "type": "journal-article",
     "title": ["Attention Is All You Need"],
-    "author": [
-        {"family": "Vaswani", "given": "Ashish"},
-        {"family": "Shazeer", "given": "Noam"},
-    ],
+    "author": [{"family": "Vaswani", "given": "Ashish"}, {"family": "Shazeer", "given": "Noam"}],
     "container-title": ["Advances in Neural Information Processing Systems"],
     "volume": "30",
     "issue": "1",
@@ -38,24 +26,14 @@ SAMPLE_WORK_ITEM = {
     "published-print": {"date-parts": [[2017, 6, 12]]},
 }
 
-SAMPLE_WORK_MINIMAL = {
-    "DOI": "10.9999/minimal",
-    "type": "book",
-    "title": ["A Minimal Entry"],
-}
+SAMPLE_WORK_MINIMAL = {"DOI": "10.9999/minimal", "type": "book", "title": ["A Minimal Entry"]}
 
-SAMPLE_SEARCH_RESPONSE = {
-    "message": {
-        "items": [SAMPLE_WORK_ITEM, SAMPLE_WORK_MINIMAL],
-    }
-}
+SAMPLE_SEARCH_RESPONSE = {"message": {"items": [SAMPLE_WORK_ITEM, SAMPLE_WORK_MINIMAL]}}
 
 SAMPLE_DOI_RESPONSE = {"message": SAMPLE_WORK_ITEM}
 
-EXPECTED_FIELDS = {
-    "title", "authors", "year", "journal", "volume",
-    "number", "pages", "doi", "type", "url",
-}
+EXPECTED_FIELDS = {"title", "authors", "year", "journal", "volume", "number", "pages", "doi", "type", "url"}
+
 
 class TestFormatWork:
     def test_full_item(self):
@@ -96,6 +74,7 @@ class TestFormatWork:
         result = crossref.format_work({"author": [{"given": "Alan"}]})
         assert result["authors"] == ["Alan"]
 
+
 class TestExtractYear:
     def test_published_print(self):
         assert crossref._extract_year({"published-print": {"date-parts": [[2020, 3, 15]]}}) == "2020"
@@ -109,6 +88,7 @@ class TestExtractYear:
     def test_empty_date_parts(self):
         assert crossref._extract_year({"published-print": {"date-parts": [[]]}}) is None
 
+
 class TestMapType:
     def test_known_types(self):
         assert crossref._map_type("journal-article") == "article"
@@ -118,6 +98,7 @@ class TestMapType:
 
     def test_unknown_type_passthrough(self):
         assert crossref._map_type("something-new") == "something-new"
+
 
 class TestFetchDoi:
     @patch("crossref._fetch_json")
@@ -130,17 +111,13 @@ class TestFetchDoi:
 
     @patch("crossref._fetch_json")
     def test_404(self, mock_fetch):
-        mock_fetch.side_effect = urllib.error.HTTPError(
-            url="x", code=404, msg="Not Found", hdrs={}, fp=None,
-        )
+        mock_fetch.side_effect = urllib.error.HTTPError(url="x", code=404, msg="Not Found", hdrs={}, fp=None)
         result = crossref.fetch_doi("10.0000/nope")
         assert "not found" in result["error"].lower()
 
     @patch("crossref._fetch_json")
     def test_429_rate_limit(self, mock_fetch):
-        mock_fetch.side_effect = urllib.error.HTTPError(
-            url="x", code=429, msg="Too Many Requests", hdrs={}, fp=None,
-        )
+        mock_fetch.side_effect = urllib.error.HTTPError(url="x", code=429, msg="Too Many Requests", hdrs={}, fp=None)
         result = crossref.fetch_doi("10.1234/x")
         assert "rate limit" in result["error"].lower()
 
@@ -168,6 +145,7 @@ class TestFetchDoi:
         result = crossref.fetch_doi("10.1234/x", timeout=3)
         assert "timed out" in result["error"].lower()
 
+
 class TestSearchTitle:
     @patch("crossref._fetch_json")
     def test_success(self, mock_fetch):
@@ -186,7 +164,7 @@ class TestSearchTitle:
     @patch("crossref._fetch_json")
     def test_http_error(self, mock_fetch):
         mock_fetch.side_effect = urllib.error.HTTPError(
-            url="x", code=500, msg="Internal Server Error", hdrs={}, fp=None,
+            url="x", code=500, msg="Internal Server Error", hdrs={}, fp=None
         )
         result = crossref.search_title("test")
         assert "error" in result
@@ -202,6 +180,7 @@ class TestSearchTitle:
         mock_fetch.side_effect = json.JSONDecodeError("Expecting value", "", 0)
         result = crossref.search_title("test")
         assert "malformed" in result["error"].lower()
+
 
 class TestOutputFormat:
     def test_all_fields_present(self):

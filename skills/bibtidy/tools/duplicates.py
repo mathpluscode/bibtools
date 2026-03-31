@@ -11,6 +11,7 @@ import re
 import sys
 import unicodedata
 
+
 def _is_escaped(text, pos):
     """Return True if the character at *pos* is preceded by a backslash."""
     return pos > 0 and text[pos - 1] == "\\"
@@ -36,6 +37,7 @@ def _remove_special_blocks(text):
         for i in range(start, pos):
             result[i] = " "
     return "".join(result)
+
 
 def parse_bib_entries(text):
     """Parse BibTeX entries from *text*, returning a list of dicts.
@@ -90,6 +92,7 @@ def parse_bib_entries(text):
 
     return entries
 
+
 def _parse_fields(text):
     """Extract field = value pairs from the body of a BibTeX entry."""
     fields = {}
@@ -119,6 +122,7 @@ def _parse_fields(text):
         fields[field_name] = value
 
     return fields
+
 
 def _read_value(text, pos):
     """Read a single BibTeX field value starting at *pos*.
@@ -161,6 +165,7 @@ def _read_value(text, pos):
 
     return " ".join(parts), pos
 
+
 def _read_braced(text, pos):
     """Read a brace-delimited value starting at *pos* (which must be '{')."""
     if text[pos] != "{":
@@ -175,6 +180,7 @@ def _read_braced(text, pos):
             depth -= 1
         pos += 1
     return text[start : pos - 1], pos
+
 
 def _read_quoted(text, pos):
     """Read a quote-delimited value starting at *pos* (which must be '"')."""
@@ -195,7 +201,9 @@ def _read_quoted(text, pos):
         pos += 1
     return text[start:pos], pos
 
+
 _LATEX_CMD_RE = re.compile(r"\\(?:textbf|textit|emph|textsc|textrm|textsf|texttt|mathit|mathrm|mathbf)\b\s*")
+
 
 def normalize_title(title):
     """Normalize a title for fuzzy comparison.
@@ -220,7 +228,9 @@ def normalize_title(title):
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
+
 _PREPRINT_RE = re.compile(r"\b(arxiv|biorxiv|chemrxiv)\b", re.IGNORECASE)
+
 
 def is_preprint(entry):
     """Return True if the entry looks like a preprint."""
@@ -234,6 +244,7 @@ def is_preprint(entry):
         return bool(re.match(r"\d{4}\.\d+", entry.get("eprint", "")))
     return False
 
+
 def _normalize_author_last(name):
     """Extract a lowercase last name from 'Last, First' or 'First Last'."""
     name = name.strip()
@@ -241,6 +252,7 @@ def _normalize_author_last(name):
         return name.split(",")[0].strip().lower()
     parts = name.split()
     return parts[-1].lower() if parts else ""
+
 
 def _share_author(ea, eb):
     """Return True if two entries share at least one author last name."""
@@ -255,14 +267,15 @@ def _share_author(ea, eb):
     b_names.discard("")
     return bool(a_names & b_names)
 
+
 def find_duplicates(entries):
     """Return a list of duplicate-pair dicts."""
     duplicates = []
 
     # Index helpers
-    keys_seen = {}       # key -> list of indices
-    dois_seen = {}       # normalised doi -> list of indices
-    titles_seen = {}     # normalised title -> list of indices
+    keys_seen = {}  # key -> list of indices
+    dois_seen = {}  # normalised doi -> list of indices
+    titles_seen = {}  # normalised title -> list of indices
 
     for i, entry in enumerate(entries):
         key = entry["key"]
@@ -286,12 +299,14 @@ def find_duplicates(entries):
         if len(idxs) > 1:
             for a in range(len(idxs)):
                 for b in range(a + 1, len(idxs)):
-                    duplicates.append({
-                        "type": "same_key",
-                        "key1": entries[idxs[a]]["key"],
-                        "key2": entries[idxs[b]]["key"],
-                        "detail": f"Duplicate citation key: {key}",
-                    })
+                    duplicates.append(
+                        {
+                            "type": "same_key",
+                            "key1": entries[idxs[a]]["key"],
+                            "key2": entries[idxs[b]]["key"],
+                            "detail": f"Duplicate citation key: {key}",
+                        }
+                    )
 
     # Collect same-doi duplicates (only between *different* keys)
     for doi, idxs in dois_seen.items():
@@ -300,12 +315,9 @@ def find_duplicates(entries):
                 for b in range(a + 1, len(idxs)):
                     ea, eb = entries[idxs[a]], entries[idxs[b]]
                     if ea["key"] != eb["key"]:
-                        duplicates.append({
-                            "type": "same_doi",
-                            "key1": ea["key"],
-                            "key2": eb["key"],
-                            "detail": f"Same DOI: {doi}",
-                        })
+                        duplicates.append(
+                            {"type": "same_doi", "key1": ea["key"], "key2": eb["key"], "detail": f"Same DOI: {doi}"}
+                        )
 
     # Collect same-title duplicates and preprint+published pairs
     for norm_title, idxs in titles_seen.items():
@@ -325,24 +337,29 @@ def find_duplicates(entries):
                     if (a_pre and not b_pre and jb) or (b_pre and not a_pre and ja):
                         pre_key = ea["key"] if a_pre else eb["key"]
                         pub_key = eb["key"] if a_pre else ea["key"]
-                        duplicates.append({
-                            "type": "preprint_published",
-                            "key1": pre_key,
-                            "key2": pub_key,
-                            "detail": f"Preprint and published version of: {norm_title}",
-                        })
+                        duplicates.append(
+                            {
+                                "type": "preprint_published",
+                                "key1": pre_key,
+                                "key2": pub_key,
+                                "detail": f"Preprint and published version of: {norm_title}",
+                            }
+                        )
                     else:
                         # Require at least one shared author to reduce false
                         # positives on generic titles like "A Survey of …"
                         if _share_author(ea, eb):
-                            duplicates.append({
-                                "type": "same_title",
-                                "key1": ea["key"],
-                                "key2": eb["key"],
-                                "detail": f"Same normalised title: {norm_title}",
-                            })
+                            duplicates.append(
+                                {
+                                    "type": "same_title",
+                                    "key1": ea["key"],
+                                    "key2": eb["key"],
+                                    "detail": f"Same normalised title: {norm_title}",
+                                }
+                            )
 
     return duplicates
+
 
 def main():
     if len(sys.argv) != 2:
@@ -360,6 +377,7 @@ def main():
     entries = parse_bib_entries(text)
     dups = find_duplicates(entries)
     print(json.dumps(dups, indent=2))
+
 
 if __name__ == "__main__":
     main()

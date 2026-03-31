@@ -4,24 +4,13 @@
 import os
 import subprocess
 import sys
-import tempfile
 
-import pytest
 
-sys.path.insert(
-    0,
-    os.path.join(
-        os.path.dirname(__file__), "..",
-        "skills", "bibtidy", "tools",
-    ),
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skills", "bibtidy", "tools"))
 
 from fmt import check_changed_entry, parse_entries
 
-TOOL_PATH = os.path.join(
-    os.path.dirname(__file__), "..",
-    "skills", "bibtidy", "tools", "fmt.py",
-)
+TOOL_PATH = os.path.join(os.path.dirname(__file__), "..", "skills", "bibtidy", "tools", "fmt.py")
 
 
 class TestParseEntries:
@@ -48,10 +37,7 @@ class TestParseEntries:
         assert "% bibtidy: source" in entries["Smith2020"]["context"]
 
     def test_multiple_entries(self):
-        text = (
-            "@article{A,\n  title={Alpha}\n}\n\n"
-            "@article{B,\n  title={Beta}\n}"
-        )
+        text = "@article{A,\n  title={Alpha}\n}\n\n@article{B,\n  title={Beta}\n}"
         entries = parse_entries(text)
         assert len(entries) == 2
         assert "A" in entries
@@ -82,10 +68,7 @@ class TestCheckChangedEntry:
         assert errors == []
 
     def test_missing_commented_original(self):
-        context = (
-            "% bibtidy: source https://doi.org/10.1234/test\n"
-            "% bibtidy: fixed title"
-        )
+        context = "% bibtidy: source https://doi.org/10.1234/test\n% bibtidy: fixed title"
         errors = check_changed_entry("Smith2020", context)
         assert any("commented-out original" in e.lower() for e in errors)
 
@@ -100,22 +83,12 @@ class TestCheckChangedEntry:
         assert any("incomplete" in e.lower() for e in errors)
 
     def test_missing_source_url(self):
-        context = (
-            "% @article{Smith2020,\n"
-            "%   title={Old},\n"
-            "% }\n"
-            "% bibtidy: fixed title"
-        )
+        context = "% @article{Smith2020,\n%   title={Old},\n% }\n% bibtidy: fixed title"
         errors = check_changed_entry("Smith2020", context)
         assert any("source" in e.lower() for e in errors)
 
     def test_missing_explanation(self):
-        context = (
-            "% @article{Smith2020,\n"
-            "%   title={Old},\n"
-            "% }\n"
-            "% bibtidy: source https://doi.org/10.1234/test"
-        )
+        context = "% @article{Smith2020,\n%   title={Old},\n% }\n% bibtidy: source https://doi.org/10.1234/test"
         errors = check_changed_entry("Smith2020", context)
         assert any("explanation" in e.lower() for e in errors)
 
@@ -137,10 +110,7 @@ class TestCLI:
         """File with no bibtidy comments should pass."""
         bib = tmp_path / "test.bib"
         bib.write_text("@article{A,\n  title={Hello}\n}\n")
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH, str(bib)],
-            capture_output=True, text=True,
-        )
+        result = subprocess.run([sys.executable, TOOL_PATH, str(bib)], capture_output=True, text=True)
         assert result.returncode == 0
         assert "Format OK" in result.stdout
 
@@ -158,32 +128,18 @@ class TestCLI:
             "  title={New}\n"
             "}\n"
         )
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH, str(orig), str(modified)],
-            capture_output=True, text=True,
-        )
+        result = subprocess.run([sys.executable, TOOL_PATH, str(orig), str(modified)], capture_output=True, text=True)
         assert result.returncode == 0
 
     def test_violation_detected(self, tmp_path):
         orig = tmp_path / "orig.bib"
         orig.write_text("@article{A,\n  title={Old}\n}\n")
         modified = tmp_path / "mod.bib"
-        modified.write_text(
-            "% bibtidy: fixed title\n"
-            "@article{A,\n"
-            "  title={New}\n"
-            "}\n"
-        )
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH, str(orig), str(modified)],
-            capture_output=True, text=True,
-        )
+        modified.write_text("% bibtidy: fixed title\n@article{A,\n  title={New}\n}\n")
+        result = subprocess.run([sys.executable, TOOL_PATH, str(orig), str(modified)], capture_output=True, text=True)
         assert result.returncode == 1
         assert "VIOLATION" in result.stdout
 
     def test_no_args(self):
-        result = subprocess.run(
-            [sys.executable, TOOL_PATH],
-            capture_output=True, text=True,
-        )
+        result = subprocess.run([sys.executable, TOOL_PATH], capture_output=True, text=True)
         assert result.returncode == 1

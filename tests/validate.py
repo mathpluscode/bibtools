@@ -122,10 +122,10 @@ def test_case_1_correct_entry(text):
     t = TestResult("Case 1: Correct entry (vaswani2017attention)")
     entry = find_entry_block(text, "vaswani2017attention")
     t.check(entry is not None, "Entry still exists")
-    t.check(not find_commented_entry(text, "vaswani2017attention"),
-            "No commented-out original (entry was not modified)")
-    t.check(not has_bibtidy_comment(text, "vaswani2017attention", r"% bibtidy:"),
-            "No bibtidy comments added")
+    t.check(
+        not find_commented_entry(text, "vaswani2017attention"), "No commented-out original (entry was not modified)"
+    )
+    t.check(not has_bibtidy_comment(text, "vaswani2017attention", r"% bibtidy:"), "No bibtidy comments added")
     if entry:
         t.check("Vaswani" in entry, "Author preserved")
         t.check("2017" in entry, "Year preserved")
@@ -137,15 +137,11 @@ def test_case_2_wrong_author(text):
     t = TestResult("Case 2: Wrong co-author (hyvarinen2005estimation)")
     entry = find_entry_block(text, "hyvarinen2005estimation")
     t.check(entry is not None, "Entry still exists")
-    t.check(find_commented_entry(text, "hyvarinen2005estimation"),
-            "Original entry commented out")
-    t.check(has_source_url(text, "hyvarinen2005estimation"),
-            "Source URL provided")
+    t.check(find_commented_entry(text, "hyvarinen2005estimation"), "Original entry commented out")
+    t.check(has_source_url(text, "hyvarinen2005estimation"), "Source URL provided")
     if entry:
-        t.check("Dayan" not in get_field(entry, "author"),
-                "Dayan removed from authors")
-        t.check("rinen" in (get_field(entry, "author") or ""),
-                "Hyvärinen still listed as author")
+        t.check("Dayan" not in get_field(entry, "author"), "Dayan removed from authors")
+        t.check("rinen" in (get_field(entry, "author") or ""), "Hyvärinen still listed as author")
         number = get_field(entry, "number")
         if number:
             t.check("24" in number, "Number corrected to 24")
@@ -157,16 +153,16 @@ def test_case_3_arxiv_upgrade(text):
     t = TestResult("Case 3: arXiv upgrade (lipman2022flow)")
     entry = find_entry_block(text, "lipman2022flow")
     t.check(entry is not None, "Entry still exists")
-    t.check(find_commented_entry(text, "lipman2022flow"),
-            "Original entry commented out")
-    t.check(has_source_url(text, "lipman2022flow"),
-            "Source URL provided")
+    t.check(find_commented_entry(text, "lipman2022flow"), "Original entry commented out")
+    t.check(has_source_url(text, "lipman2022flow"), "Source URL provided")
     if entry:
-        t.check("arxiv" not in entry.lower() or "arxiv" not in get_field(entry, "journal").lower()
-                if get_field(entry, "journal") else True,
-                "No longer listed as arXiv")
-        t.check("@inproceedings" in entry.lower() or "@article" in entry.lower(),
-                "Entry type is valid")
+        t.check(
+            "arxiv" not in entry.lower() or "arxiv" not in get_field(entry, "journal").lower()
+            if get_field(entry, "journal")
+            else True,
+            "No longer listed as arXiv",
+        )
+        t.check("@inproceedings" in entry.lower() or "@article" in entry.lower(), "Entry type is valid")
     return t
 
 
@@ -175,10 +171,8 @@ def test_case_4_formatting(text):
     t = TestResult("Case 4: Formatting fixes (ho2020denoising)")
     entry = find_entry_block(text, "ho2020denoising")
     t.check(entry is not None, "Entry still exists")
-    t.check(find_commented_entry(text, "ho2020denoising"),
-            "Original entry commented out")
-    t.check(has_source_url(text, "ho2020denoising"),
-            "Source URL provided")
+    t.check(find_commented_entry(text, "ho2020denoising"), "Original entry commented out")
+    t.check(has_source_url(text, "ho2020denoising"), "Source URL provided")
     if entry:
         doi = get_field(entry, "doi")
         if doi:
@@ -198,10 +192,8 @@ def test_case_5_duplicates(text):
         "At least one entry flagged as duplicate",
     )
     # Both entries should still exist (bibtidy flags, doesn't delete)
-    t.check(find_entry_block(text, "watson2022broadly") is not None,
-            "watson2022broadly still exists")
-    t.check(find_entry_block(text, "watson2023novo") is not None,
-            "watson2023novo still exists")
+    t.check(find_entry_block(text, "watson2022broadly") is not None, "watson2022broadly still exists")
+    t.check(find_entry_block(text, "watson2023novo") is not None, "watson2023novo still exists")
     return t
 
 
@@ -210,10 +202,8 @@ def test_case_6_wrong_pages(text):
     t = TestResult("Case 6: Wrong page numbers (strudel2021segmenter)")
     entry = find_entry_block(text, "strudel2021segmenter")
     t.check(entry is not None, "Entry still exists")
-    t.check(find_commented_entry(text, "strudel2021segmenter"),
-            "Original entry commented out")
-    t.check(has_source_url(text, "strudel2021segmenter"),
-            "Source URL provided")
+    t.check(find_commented_entry(text, "strudel2021segmenter"), "Original entry commented out")
+    t.check(has_source_url(text, "strudel2021segmenter"), "Source URL provided")
     if entry:
         pages = get_field(entry, "pages")
         if pages:
@@ -227,21 +217,15 @@ def test_case_7_title_change(text):
     t = TestResult("Case 7: Title change on publish (khader2022medical)")
     entry = find_entry_block(text, "khader2022medical")
     t.check(entry is not None, "Entry still exists")
-    t.check(find_commented_entry(text, "khader2022medical"),
-            "Original entry commented out")
-    t.check(has_source_url(text, "khader2022medical"),
-            "Source URL provided")
+    t.check(find_commented_entry(text, "khader2022medical"), "Original entry commented out")
+    t.check(has_source_url(text, "khader2022medical"), "Source URL provided")
     if entry:
         title = get_field(entry, "title") or ""
-        t.check("Medical Diffusion" not in title,
-                "arXiv-only title prefix removed")
-        t.check("Denoising" in title,
-                "Published title present")
+        t.check("Medical Diffusion" not in title, "arXiv-only title prefix removed")
+        t.check("Denoising" in title, "Published title present")
         journal = get_field(entry, "journal") or ""
-        t.check("arxiv" not in journal.lower(),
-                "No longer listed as arXiv")
-        t.check("Scientific Reports" in journal,
-                "Journal updated to Scientific Reports")
+        t.check("arxiv" not in journal.lower(), "No longer listed as arXiv")
+        t.check("Scientific Reports" in journal, "Journal updated to Scientific Reports")
     return t
 
 
@@ -259,14 +243,8 @@ def test_entry_count(text):
 def test_special_blocks(text):
     """@string and @preamble blocks should be preserved verbatim."""
     t = TestResult("Special blocks preserved (@string, @preamble)")
-    t.check(
-        "@string{neurips" in text or "@string{neurips" in text.lower(),
-        "@string{neurips} block present",
-    )
-    t.check(
-        "@preamble{" in text.lower(),
-        "@preamble block present",
-    )
+    t.check("@string{neurips" in text or "@string{neurips" in text.lower(), "@string{neurips} block present")
+    t.check("@preamble{" in text.lower(), "@preamble block present")
     return t
 
 

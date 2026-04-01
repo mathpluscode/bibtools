@@ -2,7 +2,7 @@
 # Run bibtidy on the test fixture and validate the output.
 #
 # Usage:
-#   ./tests/run.sh
+#   ./tests/run_bibtidy_tests.sh
 
 set -euo pipefail
 

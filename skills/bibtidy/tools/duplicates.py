@@ -53,19 +53,18 @@ def _find_block_end(text, start):
 def remove_special_blocks(text):
     """Replace @string, @preamble, @comment blocks with whitespace (preserving newlines)."""
     skip_types = {"string", "preamble", "comment"}
-    result = list(text)
+    spans = []
     for m in re.finditer(r"@(\w+)\s*\{", text):
         if m.group(1).lower() not in skip_types:
             continue
-        # Blank out from '@' through the matching closing delimiter.
-        start = m.start()
-        pos = _find_block_end(text, m.end())
-        if pos is None:
-            continue
-        for i in range(start, pos):
-            if result[i] != "\n":
-                result[i] = " "
-    return "".join(result)
+        end = _find_block_end(text, m.end())
+        if end is not None:
+            spans.append((m.start(), end))
+    # Replace spans in reverse so offsets stay valid.
+    for start, end in reversed(spans):
+        block = text[start:end]
+        text = text[:start] + re.sub(r"[^\n]", " ", block) + text[end:]
+    return text
 
 
 def normalize_doi(doi):

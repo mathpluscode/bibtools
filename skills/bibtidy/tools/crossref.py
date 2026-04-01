@@ -23,7 +23,7 @@ MAILTO = "bibtidy@users.noreply.github.com"
 def _build_request(url: str) -> urllib.request.Request:
     """Build a urllib Request with polite headers."""
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", f"bibtidy/1.0 (mailto:{MAILTO})")
+    req.add_header("User-Agent", f"bibtidy (mailto:{MAILTO})")
     return req
 
 

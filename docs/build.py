@@ -19,10 +19,6 @@ EXPECTED_BIB = ROOT / "tests" / "bibtidy" / "fixtures" / "expected.bib"
 OUTPUT_HTML = ROOT / "docs" / "index.html"
 
 
-# ---------------------------------------------------------------------------
-# BibTeX parsing
-# ---------------------------------------------------------------------------
-
 def parse_entries(text: str) -> list[dict]:
     """Parse a .bib file into a list of entry dicts.
 
@@ -52,7 +48,6 @@ def parse_entries(text: str) -> list[dict]:
         bibtidy_comments: list[str] = []
         # Skip commented-out original entry lines (% @... or %   ...)
         while i < len(lines) and lines[i].startswith("%"):
-            stripped = lines[i].lstrip("% ").strip()
             if lines[i].strip().startswith("% bibtidy:"):
                 bibtidy_comments.append(lines[i].strip())
             i += 1
@@ -76,18 +71,10 @@ def parse_entries(text: str) -> list[dict]:
             brace_depth += lines[i].count("{") - lines[i].count("}")
             i += 1
 
-        entries.append({
-            "key": key,
-            "lines": entry_lines,
-            "bibtidy_comments": bibtidy_comments,
-        })
+        entries.append({"key": key, "lines": entry_lines, "bibtidy_comments": bibtidy_comments})
 
     return entries
 
-
-# ---------------------------------------------------------------------------
-# Diff computation
-# ---------------------------------------------------------------------------
 
 def compute_diff(input_lines: list[str], expected_lines: list[str]) -> list[tuple[str, str]]:
     """Return list of (type, line) where type is 'ctx', 'del', or 'add'."""
@@ -110,10 +97,6 @@ def compute_diff(input_lines: list[str], expected_lines: list[str]) -> list[tupl
                 result.append(("add", line))
     return result
 
-
-# ---------------------------------------------------------------------------
-# Badge classification
-# ---------------------------------------------------------------------------
 
 def classify_entry(bibtidy_comments: list[str], diff: list[tuple[str, str]]) -> tuple[str, str]:
     """Return (badge_class, badge_label) based on bibtidy comments."""
@@ -163,10 +146,6 @@ def make_title(bibtidy_comments: list[str], diff: list[tuple[str, str]]) -> str:
     return "Entry corrected"
 
 
-# ---------------------------------------------------------------------------
-# HTML generation
-# ---------------------------------------------------------------------------
-
 _URL_RE = re.compile(r"(https?://[^\s,;)\"'&{}]+)")
 
 
@@ -177,15 +156,13 @@ def escape_html(s: str) -> str:
 def linkify(s: str) -> str:
     """Escape HTML and convert URLs to clickable links."""
     escaped = escape_html(s)
-    return _URL_RE.sub(r'<a href="\1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">\1</a>', escaped)
+    return _URL_RE.sub(
+        r'<a href="\1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">\1</a>', escaped
+    )
 
 
 def render_diff_card(
-    title: str,
-    badge_class: str,
-    badge_label: str,
-    bibtidy_comments: list[str],
-    diff: list[tuple[str, str]],
+    title: str, badge_class: str, badge_label: str, bibtidy_comments: list[str], diff: list[tuple[str, str]]
 ) -> str:
     add_count = sum(1 for t, _ in diff if t == "add") + len(bibtidy_comments)
     del_count = sum(1 for t, _ in diff if t == "del")
@@ -512,10 +489,6 @@ function switchTab(name) {{
 </html>
 """
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     input_text = INPUT_BIB.read_text()

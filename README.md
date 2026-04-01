@@ -235,6 +235,10 @@ After:
 
 ## FAQ
 
+**How can I trust the output?**
+
+You shouldn't — and that's by design. The point of bibtidy is to surface potential hallucinations and errors in your bibliography. For every changed entry, bibtidy includes a `% bibtidy: source` URL so you can verify the correction yourself. Entries marked unchanged are very likely correct, but not guaranteed. Always check the provided links before accepting changes.
+
 **Why does bibtidy flag so many page number errors?**
 
 Google Scholar extracts metadata by scraping PDFs rather than querying publisher databases, so page numbers are frequently incorrect. Even official sources can disagree — for example, the same CVPR 2020 paper "Momentum Contrast for Unsupervised Visual Representation Learning" has pages 9729--9738 on [CVF Open Access](https://openaccess.thecvf.com/content_CVPR_2020/html/He_Momentum_Contrast_for_Unsupervised_Visual_Representation_Learning_CVPR_2020_paper.html) but pages 9726--9735 on [IEEE Xplore](https://ieeexplore.ieee.org/document/9157636), because IEEE re-paginates when compiling the full proceedings volume. bibtidy uses CrossRef as the authoritative source for page numbers. CrossRef gets metadata directly from publishers via DOI registration, so for IEEE/CVF conferences it returns the IEEE Xplore pagination (9726--9735 in the example above). When sources conflict, bibtidy applies the DOI-linked version and flags the entry with `% bibtidy: REVIEW` so you can verify.
@@ -246,6 +250,10 @@ The core challenge is reliable access to bibliographic data:
 - **bibtidy** needs to search Google Scholar, CrossRef, and conference/journal sites. Google Scholar has no official API and bans scrapers; Semantic Scholar's public API (1,000 req/s) is shared globally so availability is unpredictable. Claude Code's built-in web search sidesteps both problems — no API keys, no shared rate limits. Citation metadata (title, authors, venue, year) is almost never behind a paywall, so Claude can simply visit the publisher page and read the correct information.
 
 Building on Claude Code also keeps the codebase small — the plugin reuses existing search and editing capabilities rather than reimplementing HTTP clients, parsers, and retry logic.
+
+**Do I need Claude Code?**
+
+Yes. bibtidy is currently a Claude Code plugin only. If there's demand to support other platforms (e.g. Codex), we'll consider adding it.
 
 ## License
 

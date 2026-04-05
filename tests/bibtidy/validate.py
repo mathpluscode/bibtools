@@ -293,6 +293,21 @@ def check_hallucinated_metadata_fixed(text):
     return t
 
 
+def check_author_expansion(text):
+    """Author list with 'and others' should be expanded with commented original + source."""
+    t = TestResult("Author list expanded (kirillov2023segment)")
+    entry = find_entry_block(text, "kirillov2023segment")
+    t.check(entry is not None, "Entry still exists")
+    t.check(find_commented_entry(text, "kirillov2023segment"), "Original entry commented out")
+    t.check(has_url(text, "kirillov2023segment"), "URL provided")
+    if entry:
+        author = get_field(entry, "author") or ""
+        t.check("and others" not in author, "'and others' removed")
+        t.check("Kirillov" in author, "First author preserved")
+        t.check(author.count(" and ") > 10, "Full author list present (>10 'and' separators)")
+    return t
+
+
 def check_published_article_not_downgraded(text):
     """Published article should not be downgraded to a preprint."""
     t = TestResult("Published article not downgraded (tzou2022coronavirus)")
@@ -315,7 +330,7 @@ def test_entry_count(text):
     cleaned = remove_special_blocks(text)
     cleaned = re.sub(r"(?m)^[ \t]*%.*$", "", cleaned)
     all_at = re.findall(r"^[ \t]*@(\w+)\{", cleaned, re.MULTILINE)
-    t.check(len(all_at) == 10, f"Expected 10 active entries, found {len(all_at)}")
+    t.check(len(all_at) == 11, f"Expected 11 active entries, found {len(all_at)}")
     return t
 
 
@@ -350,6 +365,7 @@ def main():
         check_wrong_pages_fixed(text),
         check_title_change_upgraded(text),
         check_hallucinated_metadata_fixed(text),
+        check_author_expansion(text),
         check_published_article_not_downgraded(text),
         check_hallucinated_entry_flagged(text),
     ]

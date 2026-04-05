@@ -16,7 +16,7 @@
         "path": "./"
       },
       "description": "A bibliography toolkit for LaTeX",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "keywords": ["bibtex", "bibliography", "latex", "overleaf", "academic", "reference", "citation"],
       "category": "academic",
       "license": "MIT"

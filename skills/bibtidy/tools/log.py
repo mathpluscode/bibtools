@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Logging helper that tees stdout/stderr to a .bib.log file."""
+
 from __future__ import annotations
 
 import os

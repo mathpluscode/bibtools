@@ -187,8 +187,8 @@ EXPECTED_DIFFS = {
             " and Berg, Alexander C and Lo, Wan-Yen and others",
             "Kirillov, Alexander and Mintun, Eric and Ravi, Nikhila and Mao, Hanzi"
             " and Rolland, Chloe and Gustafson, Laura and Xiao, Tete and Whitehead, Spencer"
-            " and Berg, Alexander C and Lo, Wan-Yen and Doll{\\'a}r, Piotr and Girshick, Ross",
-        )
+            " and Berg, Alexander C. and Lo, Wan-Yen and Doll{\\'a}r, Piotr and Girshick, Ross",
+        ),
     },
     "tzou2022coronavirus": {},
     "aichberger2025semantically": {

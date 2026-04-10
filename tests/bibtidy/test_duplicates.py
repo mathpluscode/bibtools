@@ -410,6 +410,46 @@ class TestExactDuplicates:
         _, count = remove_exact_duplicates(bib)
         assert count == 0
 
+    def test_subset_removes_entry_with_fewer_fields(self):
+        """When one entry is a strict subset of another, keep the superset."""
+        bib = "\n".join(
+            [
+                "@article{A, title={Paper}, author={Smith, John}, year={2020}, doi={10.1234/foo}}",
+                "@article{A, title={Paper}, author={Smith, John}, year={2020}}",
+            ]
+        )
+        result, count = remove_exact_duplicates(bib)
+        assert count == 1
+        entries = parse_bib_entries(result)
+        assert len(entries) == 1
+        assert "doi" in entries[0]
+
+    def test_subset_keeps_superset_when_subset_comes_first(self):
+        """Subset appearing first should still be removed, superset kept."""
+        bib = "\n".join(
+            [
+                "@article{A, title={Paper}, year={2020}}",
+                "@article{A, title={Paper}, year={2020}, volume={1}, pages={1--10}}",
+            ]
+        )
+        result, count = remove_exact_duplicates(bib)
+        assert count == 1
+        entries = parse_bib_entries(result)
+        assert len(entries) == 1
+        assert "volume" in entries[0]
+        assert "pages" in entries[0]
+
+    def test_non_subset_different_values_not_removed(self):
+        """Entries with overlapping but conflicting fields are not subsets."""
+        bib = "\n".join(
+            [
+                "@article{A, title={Paper}, year={2020}, volume={1}}",
+                "@article{A, title={Paper}, year={2020}, volume={2}}",
+            ]
+        )
+        _, count = remove_exact_duplicates(bib)
+        assert count == 0
+
     def test_different_type_not_exact(self):
         bib = "\n".join(
             [

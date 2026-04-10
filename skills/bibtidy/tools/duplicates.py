@@ -124,34 +124,62 @@ def _normalize_field_value(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip())
 
 
-def _entry_fingerprint(entry: dict[str, str]) -> tuple:
-    """Return a hashable fingerprint for exact duplicate detection."""
-    fields = {k: _normalize_field_value(v) for k, v in entry.items() if k not in ("key", "entry_type")}
-    return (entry["key"], entry["entry_type"], tuple(sorted(fields.items())))
+def _normalized_fields(entry: dict[str, str]) -> dict[str, str]:
+    """Return normalized field dict (excluding key and entry_type)."""
+    return {k: _normalize_field_value(v) for k, v in entry.items() if k not in ("key", "entry_type")}
+
+
+def _is_subset(a: dict[str, str], b: dict[str, str]) -> bool:
+    """Return True if every field in *a* matches the corresponding field in *b*."""
+    return all(k in b and b[k] == v for k, v in a.items())
 
 
 def remove_exact_duplicates(text: str) -> tuple[str, int]:
     """Comment out exact duplicate entries in bib text.
 
+    Two entries are duplicates when they share the same key and type
+    and one's fields are a subset of (or equal to) the other's.
+    The entry with more fields is kept.
+
     Returns (modified_text, count_removed).
     """
     ensure_brace_only_entries(text)
     spans = find_entry_spans(text)
-    seen = {}
-    to_remove = []
 
+    # Group span indices by (key, entry_type).
+    groups: dict[tuple[str, str], list[int]] = {}
+    parsed_entries = []
     for i, (key, start, end) in enumerate(spans):
         raw = text[start:end]
         parsed = parse_bib_entries(raw)
         if not parsed:
+            parsed_entries.append(None)
             continue
-        fp = _entry_fingerprint(parsed[0])
-        if fp in seen:
-            to_remove.append((start, end))
-        else:
-            seen[fp] = i
+        parsed_entries.append(parsed[0])
+        group_key = (key, parsed[0]["entry_type"])
+        groups.setdefault(group_key, []).append(i)
 
-    for start, end in sorted(to_remove, reverse=True):
+    to_remove: set[int] = set()
+    for idxs in groups.values():
+        if len(idxs) < 2:
+            continue
+        fields_list = [_normalized_fields(parsed_entries[i]) for i in idxs]
+        for a_pos in range(len(idxs)):
+            if idxs[a_pos] in to_remove:
+                continue
+            for b_pos in range(a_pos + 1, len(idxs)):
+                if idxs[b_pos] in to_remove:
+                    continue
+                a_fields, b_fields = fields_list[a_pos], fields_list[b_pos]
+                if _is_subset(a_fields, b_fields):
+                    # a is subset of b (or equal) — remove a
+                    to_remove.add(idxs[a_pos])
+                elif _is_subset(b_fields, a_fields):
+                    # b is subset of a — remove b
+                    to_remove.add(idxs[b_pos])
+
+    for i in sorted(to_remove, key=lambda i: spans[i][1], reverse=True):
+        start, end = spans[i][1], spans[i][2]
         raw = text[start:end]
         commented = comment_out(raw)
         text = text[:start] + f"% bibtidy: exact duplicate, commented out\n{commented}" + text[end:]

@@ -25,12 +25,17 @@ def is_escaped(text: str, pos: int) -> bool:
 
 def skip_braces(text: str, pos: int) -> int | None:
     """Advance from just after an opening '{' to just after its match."""
+    return _skip_delimited(text, pos, "{", "}")
+
+
+def _skip_delimited(text: str, pos: int, opener: str, closer: str) -> int | None:
+    """Advance from just after an opening delimiter to just after its match."""
     depth = 1
     while pos < len(text):
         ch = text[pos]
-        if ch == "{" and not is_escaped(text, pos):
+        if ch == opener and not is_escaped(text, pos):
             depth += 1
-        elif ch == "}" and not is_escaped(text, pos):
+        elif ch == closer and not is_escaped(text, pos):
             depth -= 1
             if depth == 0:
                 return pos + 1
@@ -38,15 +43,39 @@ def skip_braces(text: str, pos: int) -> int | None:
     return None
 
 
-def remove_special_blocks(text: str) -> str:
-    """Replace @string, @preamble, @comment blocks with whitespace."""
-    spans = []
-    for entry_match in re.finditer(r"@(\w+)\s*\{", text):
-        if entry_match.group(1).lower() not in SPECIAL_TYPES:
+def _mask_line_comments(text: str) -> str:
+    """Replace full-line `%` comments with whitespace while preserving newlines."""
+    return re.sub(r"(?m)^[ \t]*%.*$", lambda m: re.sub(r"[^\n]", " ", m.group()), text)
+
+
+_AT_BLOCK_RE = re.compile(r"@(\w+)\s*([\({])")
+
+
+def _find_special_block_spans(text: str) -> list[tuple[int, int]]:
+    """Return spans for active @string/@preamble/@comment blocks."""
+    masked = _mask_line_comments(text)
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    while True:
+        m = _AT_BLOCK_RE.search(masked, pos)
+        if not m:
+            return spans
+        if m.group(1).lower() not in SPECIAL_TYPES:
+            pos = m.start() + 1
             continue
-        end = skip_braces(text, entry_match.end())
-        if end is not None:
-            spans.append((entry_match.start(), end))
+        opener = m.group(2)
+        closer = "}" if opener == "{" else ")"
+        end = _skip_delimited(masked, m.end(), opener, closer)
+        if end is None:
+            pos = m.start() + 1
+            continue
+        spans.append((m.start(), end))
+        pos = end
+
+
+def remove_special_blocks(text: str) -> str:
+    """Replace active @string/@preamble/@comment blocks with whitespace."""
+    spans = _find_special_block_spans(text)
     for start, end in reversed(spans):
         block = text[start:end]
         text = text[:start] + re.sub(r"[^\n]", " ", block) + text[end:]
@@ -56,7 +85,7 @@ def remove_special_blocks(text: str) -> str:
 def ensure_brace_only_entries(text: str) -> None:
     """Raise if active file content uses parenthesized BibTeX syntax."""
     cleaned = remove_special_blocks(text)
-    cleaned = re.sub(r"(?m)^[ \t]*%.*$", "", cleaned)
+    cleaned = _mask_line_comments(cleaned)
     entry_match = re.search(r"(?m)^[ \t]*@(\w+)\s*\(", cleaned)
     if not entry_match:
         return
@@ -144,7 +173,7 @@ def parse_bib_entries(text: str) -> list[dict[str, str]]:
     """Parse BibTeX entries from *text* into dicts."""
     ensure_brace_only_entries(text)
     cleaned = remove_special_blocks(text)
-    cleaned = re.sub(r"(?m)^[ \t]*%.*$", "", cleaned)
+    cleaned = _mask_line_comments(cleaned)
 
     entries = []
     for entry_match in re.finditer(r"@(\w+)\s*\{", cleaned):
@@ -164,12 +193,10 @@ def parse_bib_entries(text: str) -> list[dict[str, str]]:
 def find_entry_spans(text: str) -> list[tuple[str, int, int]]:
     """Return (key, start, end) spans for active BibTeX entries."""
     cleaned = remove_special_blocks(text)
-    cleaned = re.sub(r"(?m)^[ \t]*%.*$", lambda m: " " * len(m.group()), cleaned)
+    cleaned = _mask_line_comments(cleaned)
 
     spans = []
     for entry_match in re.finditer(r"@(\w+)\s*\{", cleaned):
-        if entry_match.group(1).lower() in SPECIAL_TYPES:
-            continue
         end = skip_braces(cleaned, entry_match.end())
         if end is None:
             continue

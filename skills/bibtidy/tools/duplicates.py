@@ -1,38 +1,32 @@
 #!/usr/bin/env python3
-"""Detect duplicate entries in a BibTeX file.
+"""Comment out exact or subset duplicate entries in a BibTeX file.
 
 Usage: python3 duplicates.py <file.bib>
-
-Outputs a JSON array of duplicate pairs to stdout.
 """
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 import unicodedata
-from collections.abc import Iterator
 
 import log
-from parser import comment_out, ensure_brace_only_entries, find_entry_spans, parse_bib_entries
+from parser import comment_out, find_entry_spans, parse_bib_entries
 
 _DOI_URL_RE = re.compile(r"^https?://(?:dx\.)?doi\.org/", re.IGNORECASE)
-_AUTHOR_SPLIT_RE = re.compile(r"\s+and\s+")
-_PREPRINT_VENUE_RE = re.compile(r"\b(arxiv|biorxiv|chemrxiv|medrxiv)\b", re.IGNORECASE)
+_DOI_LATEX_ESCAPE_RE = re.compile(r"\\([_&%#$])")
 
 
 def normalize_doi(doi: str) -> str:
-    """Normalize DOI strings for comparison and indexing."""
-    return _DOI_URL_RE.sub("", doi.strip()).lower()
+    """Normalize DOI strings for comparison and indexing.
 
-
-def split_bibtex_authors(authors_str: str) -> list[str]:
-    """Split a BibTeX author field on the 'and' separator."""
-    authors_str = authors_str.strip()
-    if not authors_str:
-        return []
-    return [name for name in _AUTHOR_SPLIT_RE.split(authors_str) if name.strip()]
+    Strips the doi.org URL prefix and LaTeX escapes (\\_, \\&, \\%, \\#, \\$)
+    so a .bib value like ``10.1161/circ.148.suppl\\_1.13588`` resolves to the
+    same identifier CrossRef stores.
+    """
+    s = _DOI_URL_RE.sub("", doi.strip())
+    s = _DOI_LATEX_ESCAPE_RE.sub(r"\1", s)
+    return s.lower()
 
 
 def normalize_title(title: str) -> str:
@@ -48,90 +42,9 @@ def normalize_title(title: str) -> str:
     return t
 
 
-def _normalize_author_last(name: str) -> str:
-    """Extract a lowercase last name from 'Last, First' or 'First Last'."""
-    name = name.strip()
-    if "," in name:
-        return name.split(",")[0].strip().lower()
-    parts = name.split()
-    return parts[-1].lower() if parts else ""
-
-
-def _share_author(ea: dict[str, str], eb: dict[str, str]) -> bool:
-    """Return True if two entries share at least one author last name."""
-    a_raw = ea.get("author", "")
-    b_raw = eb.get("author", "")
-    if not a_raw or not b_raw:
-        return False
-    a_names = {_normalize_author_last(n) for n in split_bibtex_authors(a_raw)}
-    b_names = {_normalize_author_last(n) for n in split_bibtex_authors(b_raw)}
-    a_names.discard("")
-    b_names.discard("")
-    return bool(a_names & b_names)
-
-
-def _first_author_last(entry: dict[str, str]) -> str:
-    """Return the lowercase last name of the first author, if present."""
-    authors = split_bibtex_authors(entry.get("author", ""))
-    if not authors:
-        return ""
-    return _normalize_author_last(authors[0])
-
-
-def _entry_venue(entry: dict[str, str]) -> str:
-    """Return the venue-like field used to classify preprints."""
-    return entry.get("journal", "") or entry.get("booktitle", "")
-
-
-def _is_preprint(entry: dict[str, str]) -> bool:
-    """Return True for arXiv/bioRxiv/medRxiv/chemRxiv-style entries."""
-    venue = _entry_venue(entry)
-    return entry.get("entry_type") == "preprint" or bool(_PREPRINT_VENUE_RE.search(venue))
-
-
-def _title_keywords(title: str) -> set[str]:
-    """Return significant normalized title words for fuzzy duplicate checks."""
-    return {word for word in normalize_title(title).split() if len(word) >= 6}
-
-
-def _parse_year(entry: dict[str, str]) -> int | None:
-    """Return the entry year as an int when it looks usable."""
-    try:
-        return int((entry.get("year") or "").strip())
-    except ValueError:
-        return None
-
-
-def _is_preprint_published_pair(ea: dict[str, str], eb: dict[str, str]) -> bool:
-    """Heuristic for retitled preprint/published pairs with the same lead author."""
-    if ea["key"] == eb["key"] or _is_preprint(ea) == _is_preprint(eb):
-        return False
-    first_a = _first_author_last(ea)
-    first_b = _first_author_last(eb)
-    if not first_a or first_a != first_b:
-        return False
-
-    year_a = _parse_year(ea)
-    year_b = _parse_year(eb)
-    if year_a is not None and year_b is not None and abs(year_a - year_b) > 2:
-        return False
-
-    return len(_title_keywords(ea.get("title", "")) & _title_keywords(eb.get("title", ""))) >= 3
-
-
-def _normalize_field_value(value: str) -> str:
-    """Normalize a field value for exact comparison (collapse whitespace)."""
-    return re.sub(r"\s+", " ", value.strip())
-
-
 def _normalized_fields(entry: dict[str, str]) -> dict[str, str]:
-    """Return normalized field dict (excluding key and entry_type)."""
-    return {k: _normalize_field_value(v) for k, v in entry.items() if k not in ("key", "entry_type")}
-
-
-def _is_subset(a: dict[str, str], b: dict[str, str]) -> bool:
-    """Return True if every field in *a* matches the corresponding field in *b*."""
-    return all(k in b and b[k] == v for k, v in a.items())
+    """Return a dict of whitespace-collapsed fields, excluding key and entry_type."""
+    return {k: re.sub(r"\s+", " ", v.strip()) for k, v in entry.items() if k not in ("key", "entry_type")}
 
 
 def remove_exact_duplicates(text: str) -> tuple[str, int]:
@@ -143,40 +56,30 @@ def remove_exact_duplicates(text: str) -> tuple[str, int]:
 
     Returns (modified_text, count_removed).
     """
-    ensure_brace_only_entries(text)
     spans = find_entry_spans(text)
+    parsed_entries = parse_bib_entries(text)
 
-    # Group span indices by (key, entry_type).
     groups: dict[tuple[str, str], list[int]] = {}
-    parsed_entries = []
-    for i, (key, start, end) in enumerate(spans):
-        raw = text[start:end]
-        parsed = parse_bib_entries(raw)
-        if not parsed:
-            parsed_entries.append(None)
-            continue
-        parsed_entries.append(parsed[0])
-        group_key = (key, parsed[0]["entry_type"])
-        groups.setdefault(group_key, []).append(i)
+    for i, entry in enumerate(parsed_entries):
+        groups.setdefault((entry["key"], entry["entry_type"]), []).append(i)
 
     to_remove: set[int] = set()
     for idxs in groups.values():
         if len(idxs) < 2:
             continue
         fields_list = [_normalized_fields(parsed_entries[i]) for i in idxs]
-        for a_pos in range(len(idxs)):
-            if idxs[a_pos] in to_remove:
+        for a_pos, a_idx in enumerate(idxs):
+            if a_idx in to_remove:
                 continue
             for b_pos in range(a_pos + 1, len(idxs)):
-                if idxs[b_pos] in to_remove:
+                b_idx = idxs[b_pos]
+                if b_idx in to_remove:
                     continue
-                a_fields, b_fields = fields_list[a_pos], fields_list[b_pos]
-                if _is_subset(a_fields, b_fields):
-                    # a is subset of b (or equal) — remove a
-                    to_remove.add(idxs[a_pos])
-                elif _is_subset(b_fields, a_fields):
-                    # b is subset of a — remove b
-                    to_remove.add(idxs[b_pos])
+                a, b = fields_list[a_pos], fields_list[b_pos]
+                if all(k in b and b[k] == v for k, v in a.items()):
+                    to_remove.add(a_idx)
+                elif all(k in a and a[k] == v for k, v in b.items()):
+                    to_remove.add(b_idx)
 
     for i in sorted(to_remove, key=lambda i: spans[i][1], reverse=True):
         start, end = spans[i][1], spans[i][2]
@@ -187,90 +90,27 @@ def remove_exact_duplicates(text: str) -> tuple[str, int]:
     return text, len(to_remove)
 
 
-def find_duplicates(entries: list[dict[str, str]]) -> list[dict]:
-    """Return a list of duplicate-pair dicts."""
-    duplicates = []
-    keys_seen = {}
-    dois_seen = {}
-    titles_seen = {}
-    seen_pairs = set()
+def find_key_collisions(text: str) -> list[tuple[str, list[int]]]:
+    """Return (key, line_numbers) for groups of active entries sharing the same
+    citation key. BibTeX disallows this regardless of entry type.
+    """
+    groups: dict[str, list[int]] = {}
+    for key, start, _ in find_entry_spans(text):
+        groups.setdefault(key, []).append(start)
 
-    def _add(dup_type: str, a: int, b: int, detail: str) -> None:
-        pair = (a, b)
-        if pair in seen_pairs:
-            return
-        seen_pairs.add(pair)
-        duplicates.append({"type": dup_type, "key1": entries[a]["key"], "key2": entries[b]["key"], "detail": detail})
-
-    for i, entry in enumerate(entries):
-        key = entry["key"]
-        keys_seen.setdefault(key, []).append(i)
-
-        doi = normalize_doi(entry.get("doi", ""))
-        if doi:
-            dois_seen.setdefault(doi, []).append(i)
-
-        norm = normalize_title(entry.get("title", ""))
-        if norm:
-            titles_seen.setdefault(norm, []).append(i)
-
-    def _pairs(idxs: list[int]) -> Iterator[tuple[int, int]]:
-        for a in range(len(idxs)):
-            for b in range(a + 1, len(idxs)):
-                yield idxs[a], idxs[b]
-
-    for key, idxs in keys_seen.items():
-        if len(idxs) > 1:
-            for a, b in _pairs(idxs):
-                _add("same_key", a, b, f"Duplicate citation key: {key}")
-
-    for doi, idxs in dois_seen.items():
-        if len(idxs) > 1:
-            for a, b in _pairs(idxs):
-                if entries[a]["key"] != entries[b]["key"]:
-                    _add("same_doi", a, b, f"Same DOI: {doi}")
-
-    for norm_title, idxs in titles_seen.items():
-        if len(idxs) > 1:
-            for a, b in _pairs(idxs):
-                ea, eb = entries[a], entries[b]
-                if ea["key"] == eb["key"]:
-                    continue
-                if _share_author(ea, eb):
-                    _add("same_title", a, b, f"Same normalised title: {norm_title}")
-
-    for a in range(len(entries)):
-        for b in range(a + 1, len(entries)):
-            if _is_preprint_published_pair(entries[a], entries[b]):
-                _add("preprint_published", a, b, "Likely preprint/published pair")
-
-    return duplicates
+    collisions = [
+        (key, [text.count("\n", 0, s) + 1 for s in starts])
+        for key, starts in groups.items()
+        if len(starts) >= 2
+    ]
+    collisions.sort(key=lambda c: c[1][0])
+    return collisions
 
 
 def main() -> None:
-    if len(sys.argv) == 3 and sys.argv[2] == "--exact":
-        path = sys.argv[1]
-        log.setup(path)
-        try:
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-        except FileNotFoundError:
-            print(f"Error: file not found: {path}", file=sys.stderr)
-            sys.exit(1)
-        try:
-            result, count = remove_exact_duplicates(text)
-        except ValueError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        if count:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(result)
-        print(f"Removed {count} exact duplicate(s)")
-        return
-
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <file.bib>", file=sys.stderr)
-        print(f"       {sys.argv[0]} <file.bib> --exact", file=sys.stderr)
+        print("Near-duplicate review is handled by the agent, not by this tool.", file=sys.stderr)
         sys.exit(1)
 
     path = sys.argv[1]
@@ -283,12 +123,22 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        entries = parse_bib_entries(text)
+        result, count = remove_exact_duplicates(text)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-    dups = find_duplicates(entries)
-    print(json.dumps(dups, indent=2))
+    if count:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(result)
+    print(f"Removed {count} exact duplicate(s)")
+
+    collisions = find_key_collisions(result)
+    if collisions:
+        print("\nWARNING: unresolved same-key collisions (BibTeX forbids duplicate active keys).")
+        print("Resolve via edit.py (mark weaker entries as `duplicate`) or compare.py --key <key>.")
+        for key, lines in collisions:
+            locs = ", ".join(f"line {ln}" for ln in lines)
+            print(f"  - {key}: {locs}")
 
 
 if __name__ == "__main__":

@@ -63,8 +63,38 @@ Or in Claude Code, use the slash command: `/bibtidy refs.bib`
 
 bibtidy verifies each entry against [Google Scholar](https://scholar.google.com/) and [CrossRef](https://search.crossref.org/), fixes errors, and upgrades stale preprints to published versions. Every change includes the original entry commented out above so you can compare or revert, plus one or more `% bibtidy:` URL lines for verification. We recommend using git to track changes. If using [Overleaf](https://www.overleaf.com/), this can be done with [git sync](https://docs.overleaf.com/integrations-and-add-ons/git-integration-and-github-synchronization). To remove bibtidy comments after review, ask your agent to remove all `bibtidy` comments from the file.
 
-Note that bibtidy assumes standard brace-style BibTeX like `@article{...}`. Parenthesized forms like `@article(...)` are not supported; convert them to brace style first.
+Note that bibtidy assumes standard brace-style BibTeX like `@article{...}`. Parenthesized forms like `@article(...)` are not supported. Special blocks such as `@string`, `@preamble`, and `@comment` are ignored by the parser.
 
+### How it works
+
+bibtidy walks each entry through a bounded state machine. Every entry has a **web-search budget of 1**, spent at most once across two possible waves:
+
+```mermaid
+flowchart TD
+    P1["Phase 1: duplicates.py (exact/subset, lossless)"]
+    P2["Phase 2: compare.py fetches CrossRef candidates"]
+    HAS{"candidates?"}
+    WA["Wave A web search<br/>(mandatory, budget spent)"]
+    P3{"Phase 3: agent decides per entry"}
+    BUDGET{"budget spent?"}
+    WB["Wave B web search<br/>(budget spent)"]
+    DECIDE2["decide again with combined info"]
+    REVIEW["add '% bibtidy: REVIEW' comment<br/>with URLs, bib entry unchanged"]
+    PATCH["build fix patch (or no-op)"]
+    P4["Phase 4: duplicates.py (post-fix)<br/>+ manual near-duplicate review"]
+
+    P1 --> P2 --> HAS
+    HAS -- yes --> P3
+    HAS -- no --> WA --> P3
+    P3 -- confident --> PATCH
+    P3 -- not confident --> BUDGET
+    BUDGET -- no --> WB --> DECIDE2 --> PATCH
+    BUDGET -- yes --> REVIEW
+    PATCH --> P4
+    REVIEW --> P4
+```
+
+Each entry ends in one of four states: **Clean** (no change, no comment), **Fix** (patch applied with URLs + explanation), **Not found** (hallucinated, entry commented out), or **Review** (budget spent, entry unchanged, comment added for human attention).
 
 ### Examples
 
@@ -390,7 +420,7 @@ You shouldn't, and that's by design. The point of bibtidy is to surface potentia
 
 **Why does bibtidy flag so many page number errors?**
 
-Google Scholar extracts metadata by scraping PDFs rather than querying publisher databases, so page numbers are frequently incorrect. Even official sources can disagree, for example, the same CVPR 2020 paper "Momentum Contrast for Unsupervised Visual Representation Learning" has pages 9729--9738 on [CVF Open Access](https://openaccess.thecvf.com/content_CVPR_2020/html/He_Momentum_Contrast_for_Unsupervised_Visual_Representation_Learning_CVPR_2020_paper.html) but pages 9726--9735 on [IEEE Xplore](https://ieeexplore.ieee.org/document/9157636), because IEEE re-paginates when compiling the full proceedings volume. bibtidy uses CrossRef as the authoritative source for page numbers. CrossRef gets metadata directly from publishers via DOI registration, so for IEEE/CVF conferences it returns the IEEE Xplore pagination (9726--9735 in the example above). When sources conflict, bibtidy applies the DOI-linked version and flags the entry with `% bibtidy: REVIEW` so you can verify.
+Google Scholar extracts metadata by scraping PDFs rather than querying publisher databases, so page numbers are frequently incorrect. Even official sources can disagree, for example, the same CVPR 2020 paper "Momentum Contrast for Unsupervised Visual Representation Learning" has pages 9729--9738 on [CVF Open Access](https://openaccess.thecvf.com/content_CVPR_2020/html/He_Momentum_Contrast_for_Unsupervised_Visual_Representation_Learning_CVPR_2020_paper.html) but pages 9726--9735 on [IEEE Xplore](https://ieeexplore.ieee.org/document/9157636), because IEEE re-paginates when compiling the full proceedings volume. bibtidy uses CrossRef as the authoritative source for page numbers. CrossRef gets metadata directly from publishers via DOI registration, so for IEEE/CVF conferences it returns the IEEE Xplore pagination (9726--9735 in the example above). bibtidy applies the DOI-linked version; you can verify via the DOI URL included in the `% bibtidy:` comments.
 
 ## License
 

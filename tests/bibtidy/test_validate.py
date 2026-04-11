@@ -7,7 +7,7 @@ import pytest
 
 from parser import parse_bib_entries
 
-from validate import find_entry_block, find_commented_entry, get_field, has_bibtidy_comment, has_url
+from validate import find_entry_block, find_commented_entry, get_field, has_bibtidy_comment
 
 
 SAMPLE_ENTRY = "@article{Smith2020,\n  title={A {Nested} Title},\n  author={Smith, John},\n  year={2020}\n}"
@@ -60,12 +60,24 @@ class TestFindEntryBlock:
         assert result is not None
         assert "title={Shown}" in result
 
+    def test_parenthesized_comment_block_ignored(self):
+        text = "@comment(ignored @article(ghost, title={Ignored}))\n@article{Real,\n  title={Shown}\n}"
+        result = find_entry_block(text, "Real")
+        assert result is not None
+        assert "title={Shown}" in result
+
     def test_ghost_entry_inside_comment_not_found(self):
         """Brace-style entry nested inside @comment{...} should not be found."""
         text = "@comment{ignored\n  @article{Ghost, title={Hidden}}\n}\n@article{Real,\n  title={Shown}\n}"
         assert find_entry_block(text, "Ghost") is None
         result = find_entry_block(text, "Real")
         assert result is not None
+
+    def test_string_block_ignored(self):
+        text = "@string{venue = {Conference}}\n\n@article{Real,\n  title={Shown}\n}"
+        result = find_entry_block(text, "Real")
+        assert result is not None
+        assert "title={Shown}" in result
 
 
 class TestFindCommentedEntry:
@@ -83,11 +95,6 @@ class TestFindCommentedEntry:
         """Indented commented originals like '%   @article{A,' should be found."""
         text = "%   @article{Smith2020,\n%     title={Old},\n%   }\n@article{Smith2020,\n  title={New}\n}"
         assert find_commented_entry(text, "Smith2020") is True
-
-    def test_parenthesized_entry_rejected(self):
-        with pytest.raises(ValueError, match="not supported"):
-            find_commented_entry("@article(Smith2020,\n  title={A}\n)", "Smith2020")
-
 
 class TestGetField:
     def test_simple_field(self):
@@ -111,19 +118,9 @@ class TestHasBibtidyComment:
     def test_not_found(self):
         assert has_bibtidy_comment(SAMPLE_ENTRY, "Smith2020", r"% bibtidy:") is False
 
-    def test_has_url(self):
-        assert has_url(SAMPLE_CHANGED, "Smith2020") is True
-
-    def test_no_url(self):
-        assert has_url(SAMPLE_ENTRY, "Smith2020") is False
-
     def test_duplicate_flag(self):
         text = "% bibtidy: DUPLICATE of Other — consider removing\n@article{Dup,\n  title={Test}\n}"
         assert has_bibtidy_comment(text, "Dup", r"DUPLICATE") is True
-
-    def test_parenthesized_entry_rejected(self):
-        with pytest.raises(ValueError, match="not supported"):
-            has_bibtidy_comment("@article(Smith2020,\n  title={A}\n)", "Smith2020", r"% bibtidy:")
 
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -200,6 +197,27 @@ EXPECTED_DIFFS = {
             "Aichberger, Franz and Chen, Lily and Smith, John",
             "Aichberger, Lukas and Schweighofer, Kajetan and Ielanskyi, Mykyta and Hochreiter, Sepp",
         ),
+    },
+    "shad2023generalizable": {
+        "title": (
+            "A Generalizable Deep Learning System for Cardiac MRI",
+            "A generalizable deep learning system for cardiac MRI",
+        ),
+        "author": (
+            "Shad, Rohan and Zakka, Cyril R and Kaur, Dhamanpreet and Mongan, John"
+            " and Kallianos, Kimberly G and Filice, Ross and Khandwala, Nishith and Eng, David"
+            " and Langlotz, Curtis and Hiesinger, William",
+            "Shad, Rohan and Zakka, Cyril and Kaur, Dhamanpreet and Mathur, Mrudang"
+            " and Fong, Robyn and Cho, Joseph and Filice, Ross Warren and Mongan, John"
+            " and Kallianos, Kimberly and Khandwala, Nishith and others",
+        ),
+        "journal": ("Circulation", "Nature Biomedical Engineering"),
+        "year": ("2023", "2026"),
+        "volume": ("148", None),
+        "number": ("Suppl\\_1", None),
+        "pages": ("A13588--A13588", "1--16"),
+        "doi": ("10.1161/circ.148.suppl\\_1.13588", None),
+        "publisher": (None, "Nature Publishing Group UK London"),
     },
 }
 

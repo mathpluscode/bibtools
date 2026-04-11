@@ -24,9 +24,16 @@ class _Tee:
         self.log_file.flush()
 
 
+def _is_codex_runtime() -> bool:
+    """Return True when running inside a Codex process."""
+    return any(
+        os.environ.get(name) for name in ("CODEX_THREAD_ID", "CODEX_SHELL", "CODEX_INTERNAL_ORIGINATOR_OVERRIDE")
+    )
+
+
 def _platform_suffix() -> str:
     """Return a platform-specific log suffix based on the runtime environment."""
-    if os.environ.get("CODEX_HOME") or os.path.isdir(os.path.expanduser("~/.codex/skills/bibtidy")):
+    if _is_codex_runtime():
         return ".codex.log"
     return ".cc.log"
 

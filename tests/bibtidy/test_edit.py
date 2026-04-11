@@ -16,8 +16,8 @@ class TestFindEntrySpans:
         assert spans[0][0] == "key1"
         assert text[spans[0][1] : spans[0][2]] == text
 
-    def test_skips_string_preamble(self):
-        text = '@string{neurips = {NeurIPS}}\n\n@preamble{"test"}\n\n@article{k,\n  title={T}\n}'
+    def test_skips_string_preamble_and_comment_blocks(self):
+        text = '@string{venue = {Conference}}\n\n@preamble{"test"}\n\n@comment{ignored}\n\n@article{k,\n  title={T}\n}'
         spans = find_entry_spans(text)
         assert len(spans) == 1
         assert spans[0][0] == "k"
@@ -226,14 +226,15 @@ class TestApplyPatches:
         assert "% bibtidy: DUPLICATE of a" in result
         assert "@article{c," in result
 
-    def test_preserves_string_blocks(self):
-        text = "@string{x = {Y}}\n\n@article{k,\n  title={T}\n}"
+    def test_preserves_special_blocks(self):
+        text = '@string{x = {Y}}\n\n@preamble{"test"}\n\n@article{k,\n  title={T}\n}'
         patches = [
             {"key": "k", "action": "fix", "urls": ["https://x.com"], "explanation": "test", "fields": {"title": "New"}}
         ]
         result, applied = apply_patches(text, patches)
         assert applied == {"k"}
         assert "@string{x = {Y}}" in result
+        assert '@preamble{"test"}' in result
         assert "title={New}" in result
 
     def test_unknown_key_not_in_applied(self, capsys):

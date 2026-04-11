@@ -2,9 +2,9 @@
 """CrossRef API utilities for BibTeX validation.
 
 Usage:
-    python3 crossref.py doi <DOI>                  — fetch metadata for a specific DOI
-    python3 crossref.py search "<title>"           — search by title, return top 3 results
-    python3 crossref.py bibliographic "<query>"    — broad bibliographic search, return top 3 results
+    python3 crossref.py doi <DOI>                  fetch metadata for a specific DOI
+    python3 crossref.py search "<title>"           search by title, return top 3 results
+    python3 crossref.py bibliographic "<query>"    broad bibliographic search, return top 3 results
 
 Options:
     --timeout SECONDS   HTTP timeout (default: 10)
@@ -54,70 +54,51 @@ def _extract_authors(item: dict) -> list:
 
 def _extract_year(item: dict) -> str | None:
     """Extract the publication year from a CrossRef work item."""
-    for date_field in ("published-print", "published-online", "issued", "created"):
+    for date_field in ("published-print", "published-online", "issued"):
         date_parts = item.get(date_field, {}).get("date-parts", [])
         if date_parts and date_parts[0] and date_parts[0][0]:
             return str(date_parts[0][0])
     return None
 
 
-def _map_type(crossref_type: str) -> str:
-    """Map CrossRef type strings to simpler categories."""
-    mapping = {
-        "journal-article": "article",
-        "proceedings-article": "inproceedings",
-        "book-chapter": "inbook",
-        "book": "book",
-        "monograph": "book",
-        "edited-book": "book",
-        "report": "techreport",
-        "dissertation": "phdthesis",
-        "posted-content": "preprint",
-        "dataset": "misc",
-        "peer-review": "misc",
-    }
-    return mapping.get(crossref_type, crossref_type)
-
-
 def format_work(item: dict) -> dict:
-    """Convert a CrossRef work item into our standardised output dict."""
+    """Convert a CrossRef work item into our standardised output dict.
+
+    Passes CrossRef's raw `type` string through, the agent decides how to
+    translate it (e.g. `journal-article` → `@article`).
+    """
     title_list = item.get("title", [])
-    title = title_list[0] if title_list else None
-
     container = item.get("container-title", [])
-    journal = container[0] if container else None
-
     return {
-        "title": title,
+        "title": title_list[0] if title_list else None,
         "authors": _extract_authors(item),
         "year": _extract_year(item),
-        "journal": journal,
+        "journal": container[0] if container else None,
+        "publisher": item.get("publisher"),
         "volume": item.get("volume"),
-        "number": item.get("issue"),  # CrossRef "issue" = BibTeX "number"
+        "number": item.get("issue"),
         "pages": item.get("page"),
         "doi": item.get("DOI"),
-        "type": _map_type(item.get("type", "")),
+        "type": item.get("type"),
         "url": item.get("URL"),
     }
 
 
 def _safe_fetch(url: str, timeout: int) -> dict:
-    """Fetch JSON with standardised error handling."""
+    """Fetch JSON, returning `{ok, data}` or `{error}`.
+
+    HTTPError is kept as its own branch so `fetch_doi` can still detect 404
+    via the `HTTP 404` prefix and so rate limits surface with an actionable
+    message. Everything else collapses to a single generic error.
+    """
     try:
         return {"ok": True, "data": _fetch_json(url, timeout)}
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             return {"error": "Rate limited by CrossRef API. Try again later."}
         return {"error": f"HTTP {exc.code}: {exc.reason}"}
-    except urllib.error.URLError as exc:
-        reason = str(exc.reason)
-        if "timed out" in reason.lower() or "timeout" in reason.lower():
-            return {"error": f"Request timed out after {timeout}s"}
-        return {"error": f"Network error: {reason}"}
-    except (TimeoutError, OSError):
-        return {"error": f"Request timed out after {timeout}s"}
-    except (KeyError, IndexError, json.JSONDecodeError) as exc:
-        return {"error": f"Malformed response from CrossRef: {exc}"}
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def fetch_doi(doi: str, timeout: int = 10) -> dict:

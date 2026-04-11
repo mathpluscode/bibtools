@@ -35,8 +35,8 @@ def parse_entries(text: str) -> list[dict]:
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
-        # Skip @string, @preamble, and blank lines
-        if not stripped or re.match(r"^@(string|preamble)", stripped, re.IGNORECASE):
+        # Skip @string, @preamble, @comment, and blank lines
+        if not stripped or re.match(r"^@(string|preamble|comment)\b", stripped, re.IGNORECASE):
             i += 1
             continue
 
@@ -134,7 +134,7 @@ def classify_entry(bibtidy_comments: list[str], diff: list[tuple[str, str]]) -> 
     return "badge-ok", "unchanged"
 
 
-_URL_RE = re.compile(r"(https?://[^\s,;)\"'&{}]+)")
+_URL_RE = re.compile(r"https?://[^\s,;)\"'{}<]+")
 
 
 def escape_html(s: str) -> str:
@@ -143,10 +143,17 @@ def escape_html(s: str) -> str:
 
 def linkify(s: str) -> str:
     """Escape HTML and convert URLs to clickable links."""
-    escaped = escape_html(s)
-    return _URL_RE.sub(
-        r'<a href="\1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">\1</a>', escaped
-    )
+    parts = []
+    last = 0
+    for match in _URL_RE.finditer(s):
+        parts.append(escape_html(s[last : match.start()]))
+        url = escape_html(match.group(0))
+        parts.append(
+            f'<a href="{url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">{url}</a>'
+        )
+        last = match.end()
+    parts.append(escape_html(s[last:]))
+    return "".join(parts)
 
 
 def render_diff_row(typ: str, line: str) -> str:
@@ -599,17 +606,6 @@ def main() -> None:
     for key, inp in input_entries.items():
         if key in seen_keys:
             continue
-        # Find bibtidy comments for this key in expected text
-        bibtidy_comments = []
-        for line in expected_text.splitlines():
-            stripped = line.strip()
-            if (
-                stripped.startswith("% bibtidy:")
-                and key in expected_text[expected_text.index(stripped) : expected_text.index(stripped) + 500]
-            ):
-                bibtidy_comments.append(stripped)
-                break
-        # Simpler approach: scan expected text for bibtidy comments near the commented-out entry
         bibtidy_comments = []
         exp_lines = expected_text.splitlines()
         for idx, line in enumerate(exp_lines):

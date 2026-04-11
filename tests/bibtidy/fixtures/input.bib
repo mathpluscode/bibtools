@@ -1,8 +1,6 @@
 % Test fixture for bibtidy skill validation
 % Each entry targets a specific check — see validate.py for expected outcomes
 
-@string{neurips = {Advances in Neural Information Processing Systems}}
-
 @preamble{"Managed by bibtidy — do not edit metadata comments"}
 
 % Hallucinated reference (https://openreview.net/forum?id=75SJoY9gTN)
@@ -125,4 +123,16 @@
   pages={e0261045},
   year={2022},
   publisher={Public Library of Science San Francisco, CA USA}
+}
+
+% Outdated abstract to be updated with published version with DOI change
+@article{shad2023generalizable,
+  title={A Generalizable Deep Learning System for Cardiac MRI},
+  author={Shad, Rohan and Zakka, Cyril R and Kaur, Dhamanpreet and Mongan, John and Kallianos, Kimberly G and Filice, Ross and Khandwala, Nishith and Eng, David and Langlotz, Curtis and Hiesinger, William},
+  journal={Circulation},
+  volume={148},
+  number={Suppl\_1},
+  pages={A13588--A13588},
+  year={2023},
+  doi={10.1161/circ.148.suppl\_1.13588}
 }

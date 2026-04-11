@@ -1,6 +1,6 @@
 ---
 name: bibtidy
-description: Use when the user wants to validate, check, or fix a BibTeX (.bib) reference file — wrong authors, stale arXiv preprints, incorrect metadata, duplicate entries, formatting issues
+description: Use when the user wants to validate, check, or fix a BibTeX (.bib) reference file, wrong authors, stale arXiv preprints, incorrect metadata, duplicate entries, formatting issues
 metadata:
   short-description: Validate and fix BibTeX reference files
 allowed-tools: Bash(python3 *), Bash(cp *), Bash(rm *), Read, Agent, WebSearch
@@ -18,20 +18,19 @@ Usage examples:
 
 You are a meticulous academic reference checker. Process the .bib file entry by entry, verifying each against external sources and fixing errors in-place.
 
-Assume standard brace-style BibTeX entries like `@article{...}`. Parenthesized BibTeX blocks like `@article(...)` are not supported. If you see them, stop and tell the user to convert them to brace style first.
+Assume standard brace-style BibTeX entries like `@article{...}`. Parenthesized BibTeX blocks like `@article(...)` are not supported. `@string`, `@preamble`, and `@comment` blocks should be ignored and preserved.
 
 ## Quick Reference
 
 | Tool | Command |
 |------|---------|
-| **Field comparison** | `python3 $TOOLS_DIR/compare.py <file.bib> [--key KEY]` |
+| **CrossRef candidate lookup** | `python3 $TOOLS_DIR/compare.py <file.bib> [--key KEY]` |
 | CrossRef DOI lookup | `python3 $TOOLS_DIR/crossref.py doi <DOI>` |
 | CrossRef title search | `python3 $TOOLS_DIR/crossref.py search "<title>"` |
 | CrossRef bibliographic search | `python3 $TOOLS_DIR/crossref.py bibliographic "<query>"` |
-| Comment out exact/subset duplicates | `python3 $TOOLS_DIR/duplicates.py <file.bib> --exact` |
-| Detect near-duplicates | `python3 $TOOLS_DIR/duplicates.py <file.bib>` |
+| Comment out exact/subset duplicates | `python3 $TOOLS_DIR/duplicates.py <file.bib>` |
 | **Apply edits** | `python3 $TOOLS_DIR/edit.py <file.bib> <patches.json>` |
-| Web verification | web search (preferred) or CrossRef scripts (fallback) |
+| Web verification | web-search subagent, one per entry maximum |
 
 ## Script Path Resolution
 
@@ -69,116 +68,109 @@ For `fix` patches, each targeted edit MUST contain the original entry, one or mo
 }
 ```
 
-- **Part 1** — entire original entry, every line prefixed by `% `. All lines, not just the first.
-- **Part 2** — `% bibtidy: ` followed by a URL. Must be exactly `% bibtidy: https://...`.
-- **Part 3** — `% bibtidy: ` followed by explanation of what changed.
-- **Part 4** — corrected entry.
+- **Part 1**, entire original entry, every line prefixed by `% `. All lines, not just the first.
+- **Part 2**, `% bibtidy: ` followed by a URL. Must be exactly `% bibtidy: https://...`.
+- **Part 3**, `% bibtidy: ` followed by explanation of what changed.
+- **Part 4**, corrected entry.
 
 Exceptions:
 - `not_found` entries get the `% bibtidy: NOT FOUND ...` line plus the fully commented-out original entry. Do NOT add a URL line.
-- `duplicate` entries get `% bibtidy: DUPLICATE of <other_key> — consider removing` above the original entry. Do NOT add URL or explanation lines unless the tool behavior changes.
+- `duplicate` entries get `% bibtidy: DUPLICATE of <other_key>, consider removing` above the original entry. Do NOT add URL or explanation lines unless the tool behavior changes.
+- `review` entries (uncertain, budget exhausted) get one or more `% bibtidy:` URL lines and a `% bibtidy: REVIEW, <what was confusing>` line above the **unchanged** original entry. Do NOT modify the entry itself.
 
-For unchanged entries, do NOT add any comments or URLs.
+For unchanged (clean) entries, do NOT add any comments or URLs.
 
 ## Workflow
+
+Each entry has a **web-search budget of 1**, spent in at most one of Wave A or Wave B. Track which entries have used the budget so you never double-search.
 
 - Read the .bib file, note the file path
 - Clear the log file: `> <file>.bib.cc.log` (Claude Code) or `> <file>.bib.codex.log` (Codex)
 - Back up for format validation: `cp <file>.bib <file>.bib.orig`
 - Preserve `@string`, `@preamble`, `@comment` blocks verbatim
-- **Comment out exact/subset duplicates**: `python3 $TOOLS_DIR/duplicates.py <file.bib> --exact` — this comments out entries that are identical or a strict subset of another entry (same key, same type, matching fields). The entry with more fields is kept. Safe to auto-comment since no information is lost.
-- **Run field comparison**: `python3 $TOOLS_DIR/compare.py <file.bib>` — this programmatically compares every entry against CrossRef and returns exact field-level mismatches. Do NOT skip this step or rely on visual comparison alone. The output is a JSON list; each element has `key`, `versions` (a list of alternative CrossRef candidate matches for the same entry, each with `mismatches`, `url`, `doi`, etc.), and `error`. When multiple versions are returned, choose the best matching candidate; do not combine fields from different versions. **Skip rule**: if an entry has zero mismatches across all versions and no error in the compare.py output, skip it entirely — do NOT investigate, modify, or add comments to it. Only proceed with entries that compare.py flagged (mismatches or errors).
-- **Verify every planned modification with web search** — for entries that compare.py flagged with mismatches or errors, verify the planned action via web search. For `fix` patches, gather one or more source URLs. Entries where `compare.py` returned an error (e.g. "No exact title match") still need full verification — the verification agent should search for the paper and check all fields. **Important: after selecting the best-matching version, verification agents MUST NOT override that selected version's `compare.py` field values.** CrossRef is the authoritative source for metadata (pages, volume, number, etc.) because it receives data directly from publishers via DOI registration. When web search finds a conflicting value (e.g. different page numbers on a conference website), always use the CrossRef value and add `% bibtidy: REVIEW` if desired — but do NOT keep the old value.
-- **Flag hallucinated/non-existent references** — if compare.py returned an error (e.g. "No CrossRef results found" or "No exact title match in CrossRef results") AND web search also finds no matching paper, the reference likely does not exist. Add `% bibtidy: NOT FOUND — no matching paper on CrossRef or web search; verify this reference exists` above the entry, then comment out the entire entry (prefix every line with `% `). Do NOT add a URL line.
-- Apply fixes **sequentially** using `edit.py` — do NOT edit the .bib file directly with agent editing tools (for example, Claude Code Edit or Codex `apply_patch`), and do NOT rewrite the entire file. Build a patches.json for each entry (or batch) and run `python3 $TOOLS_DIR/edit.py <file.bib> <patches.json>`. This ensures the commented original, source URLs, and explanation are always included. After selecting the correct version, you MUST apply **every** mismatch from that selected version — do not skip any field (including `author`, `number`, `pages`, `volume`). In particular, if the bib entry uses `and others` but CrossRef returns the full author list, you MUST replace the truncated list with the complete one from CrossRef. Use the `crossref_value` exactly as given (do NOT rephrase, reformat, or partially apply it). For title mismatches on preprint→published upgrades, replace the entire title with the CrossRef title — do NOT try to edit parts of the old title. Never reject a CrossRef value because another source disagrees. Every patch MUST include `urls` (list of source URLs) and `explanation` (what changed and why). Include the CrossRef URL from compare.py's `url` field when available, plus any other authoritative source (DOI URL, venue page) found via web search.
-- **Post-fix exact/subset duplicate detection**: `python3 $TOOLS_DIR/duplicates.py <file.bib> --exact` — entries that were different before fixing may now be identical (or one a subset of another) after metadata corrections. Comment out any new exact/subset duplicates.
-- **Detect near-duplicates**: `python3 $TOOLS_DIR/duplicates.py <file.bib>` — flag entries that share the same key, DOI, or title (with a shared author), plus likely preprint→published pairs with the same lead author and overlapping significant title words, but are not identical. Apply `duplicate` patches via `edit.py` to add `% bibtidy: DUPLICATE of <other_key>` comments. Do NOT delete or comment out near-duplicates.
+- **Comment out exact/subset duplicates**: `python3 $TOOLS_DIR/duplicates.py <file.bib>`. Lossless, safe to auto-comment.
+- **Fetch CrossRef candidates**: `python3 $TOOLS_DIR/compare.py <file.bib>`. Returns a JSON list; each element has `key`, `candidates` (raw CrossRef records whose normalized title matches the entry, plus any DOI lookup result), and `error`. Each candidate also carries a `discrepancies` object keyed by field name. For every differing field it reports raw `entry` and `candidate` values, with missing values as `null`. This is informational only: there is no normalization, alias mapping, or judgment about which side is correct. Do not treat a missing candidate value as evidence that the bib field should be removed. Conversely, when a standard venue field (volume, number/issue, pages, etc.) is missing from the bib entry but a verified candidate provides a value, add it to your fix patch. The exception is `doi`: never inject a `doi` field into an entry that lacks one. Treat naming mismatches like `author` vs `authors` and `booktitle` vs `journal` as schema or cosmetic until verified otherwise. Only fold verified, substantive differences into your fix patch.
+- **Wave A, mandatory web search for entries with no CrossRef hit**: for every entry where `error` is set or `candidates` is empty, launch a web-search subagent (see Parallel Verification below). These entries have now used their budget.
+- **Per-entry decision pass**: for each entry, look at the bib fields, the candidates, and any Wave A result, then pick one outcome:
+  - **Clean**: candidates confirm the entry. Do nothing, add no comments.
+  - **Fix**: candidates clearly identify the right paper and fields need updating. Build a `fix` patch.
+  - **Escalate**: candidates look wrong or ambiguous AND the entry has not used its budget. Queue for Wave B.
+  - **Not found**: Wave A ran and neither CrossRef nor web search located the paper. Mark as `not_found`.
+  - **Review**: the entry has used its budget and you are still uncertain. Do NOT modify the entry. Add a `% bibtidy: REVIEW, <what was confusing>` comment above it plus `% bibtidy: <URL>` lines for everything you inspected.
+- **Wave B, escalation web search**: launch a second round of subagents for entries queued as Escalate. These entries have now used their budget.
+- **Final decision pass**: re-run the per-entry decision for Wave B entries with the combined info. Outcomes are Clean, Fix, Not found, or Review, never Escalate (budget exhausted).
+- **Apply fixes sequentially using `edit.py`**: write a real `patches.json` file with a JSON heredoc (e.g. `cat > patches.json <<'JSON' ... JSON`), then run `python3 $TOOLS_DIR/edit.py <file.bib> patches.json`. Do NOT construct the patches via a Python heredoc, `python3 -c`, or any other Python snippet piped into `edit.py -`, JSON and Python literal syntax disagree (`null`/`true`/`false` vs `None`/`True`/`False`) and a silent producer crash leaves `edit.py` reading an empty pipe. Do NOT edit the .bib file directly with agent editing tools (for example, Claude Code Edit or Codex `apply_patch`), and do NOT rewrite the entire file. `edit.py` merges by default: include a field in `fields` to set or update it, set it to `null` to remove it, omit it to leave it unchanged. Every `fix` patch MUST include `urls` and `explanation`. Use CrossRef and web-search values verbatim, do not rephrase. When the bib entry uses `and others` and a candidate gives the full author list, replace the truncated list with the complete one.
+- **Post-fix exact/subset duplicate detection**: `python3 $TOOLS_DIR/duplicates.py <file.bib>`. Entries that were different before fixing may now be identical after metadata corrections. If the tool prints an `unresolved same-key collisions` warning, you MUST resolve every listed collision (see Duplicate Detection) and re-run `duplicates.py` until the warning is gone.
+- **Review likely related entries manually** (see Duplicate Detection).
 - Run format validation; fix violations and re-run until clean
 - Delete backup: `rm <file>.bib.orig`
-- Print a Markdown summary table with headers `Metric | Count` and exactly these rows: total entries, verified, fixed, not found, exact duplicates removed, near-duplicates flagged. Do NOT include a separate "needs manual review" row.
+- Print a Markdown summary table with headers `Metric | Count` and these rows: total entries, verified, fixed, not found, needs review, exact duplicates removed, near-duplicates flagged.
 
 ## Parallel Verification with Subagents
 
-Use subagents, when available, to verify multiple entries concurrently. This dramatically reduces wall-clock time (e.g., 7 entries: ~1 min parallel vs ~5 min sequential; 100 entries: ~3 min vs ~40 min). If subagents are unavailable, do the same verification work sequentially yourself.
+Use subagents, when available, to run each web-search wave concurrently. If unavailable, do the same work sequentially. Cap at **6 subagents per wave** and distribute entries evenly (e.g. 18 entries → 3 per subagent). For ≤6 entries, use one subagent per entry.
 
-**Step 1 — Dispatch verification agents:** For entries that `compare.py` flagged with mismatches or errors, launch a subagent that:
-- For mismatches: uses web search to confirm the CrossRef data (especially for preprint upgrades and author changes)
-- For errors (e.g. paper not found in CrossRef): uses web search to verify **every** field from scratch — title, author, journal/booktitle, volume, number, pages, year. Do NOT skip number or other fields just because they look plausible.
-- Returns a JSON summary: key, whether each mismatch is confirmed, source URL, CrossRef URL (if there is a CrossRef match), any additional corrections found
+**Agent prompt template** (identical for Wave A and Wave B, candidates may be empty):
 
-**When CrossRef fails**, find the paper's official venue page via web search. Many venues (JMLR, NeurIPS, CVPR, etc.) provide a downloadable `.bib` file — fetch it directly when possible. An official `.bib` is the most reliable source: it has exact title, authors, volume, number, and pages with no guessing.
-
-Launch verification subagents in one batch so they run concurrently. Cap at **6 subagents** and distribute entries evenly across them (e.g., 18 entries = 3 per subagent, 60 entries = 10 per subagent). For ≤6 entries, use one subagent per entry. If the user explicitly requests more parallelism, you may increase beyond 6.
-
-**Step 2 — Collect results:** Read each agent's returned summary.
-
-**Step 3 — Apply edits sequentially using `edit.py`:** Using the lookup results, build a patches.json and run `python3 $TOOLS_DIR/edit.py <file.bib> <patches.json>` one entry at a time. Do NOT edit the .bib file directly with agent editing tools such as Claude Code Edit or Codex `apply_patch`. Edits MUST be sequential (parallel edits to the same file cause conflicts).
-
-**Example agent prompt:**
 ```
-Verify this BibTeX entry against CrossRef. Return ONLY valid JSON with no markdown formatting or conversational text. Keys: "key", "needs_fix" (bool), "fixes" (list of changes), "source_url", "corrected_fields" (dict).
+Verify this BibTeX entry using web search. Return ONLY valid JSON, no markdown or conversational text.
 
-TOOLS_SEARCH_PATH=(
-  "${CODEX_HOME:-$HOME/.codex}/skills/bibtidy/tools"
-  "$HOME/.claude/skills/bibtidy/tools"
-  "${CLAUDE_PLUGIN_ROOT:-/dev/null}/skills/bibtidy/tools"
-)
-for d in "${TOOLS_SEARCH_PATH[@]}"; do
-  if [ -f "$d/crossref.py" ]; then TOOLS_DIR="$d"; break; fi
-done
+Return JSON with keys:
+  "key"          - the citation key
+  "source_urls"  - list of URLs you inspected (DOI, venue page, arXiv, publisher)
+  "fields"       - proposed fix-patch field values (dict), or null if nothing should change
+  "notes"        - short explanation of what you verified or could not resolve
+
+Use null inside "fields" to remove a stale field, or set "fields" to null entirely if the paper could not be located. Use CrossRef and publisher values verbatim.
+
+When you locate the paper, inspect the authoritative page and verify the standard fields the venue publishes: title, full author list, year, journal/booktitle, volume, number/issue, pages, and DOI. Put a field into "fields" when the verified source differs from the bib entry's current value, or when the field is missing from the bib entry and the venue publishes a value for it. The exception is `doi`: if the entry already lacks a DOI, do not propose adding one just because you found it online; note the DOI in "notes" if it matters for verification. If a standard field is genuinely unavailable on the venue page, say so in "notes" instead of omitting it silently.
 
 Entry:
-@article{smith2020deep,
-  title={Deep Learning for NLP},
-  author={Smith, John},
-  journal={arXiv preprint arXiv:2001.12345},
-  year={2020}
-}
+<BIB ENTRY>
+
+Candidates (may be empty):
+<CANDIDATES JSON or "none">
 ```
 
 ## Duplicate Detection
 
-Duplicate handling has three phases (see workflow steps 4, 9, 10):
+Duplicate handling runs as two automated exact/subset passes (before and after metadata fixes) plus a manual near-duplicate review:
 
-**Exact/subset duplicates** (same key, type, and one entry's fields are a subset of or equal to the other's): `python3 $TOOLS_DIR/duplicates.py <file.bib> --exact` comments out the entry with fewer fields automatically. Run before and after metadata fixes.
+**Exact/subset duplicates** (same key, type, and one entry's fields are a subset of or equal to the other's): `python3 $TOOLS_DIR/duplicates.py <file.bib>` comments out the entry with fewer fields automatically. Run before and after metadata fixes.
 
-**Near-duplicates** (same key, DOI, or title with shared author, plus likely preprint→published pairs with the same lead author and overlapping significant title words, but different content): `python3 $TOOLS_DIR/duplicates.py <file.bib>` returns a JSON array of pairs. For each, apply a `duplicate` patch via `edit.py` to add `% bibtidy: DUPLICATE of <other_key>`. Do NOT delete or comment out near-duplicates.
+**Same-key collisions** that the subset pass cannot resolve are reported by `duplicates.py` as an `unresolved same-key collisions` warning listing each citation key with the line numbers of the colliding active entries. Resolve each by applying a `duplicate` patch via `edit.py` to the weaker entries, or by reconciling fields with `compare.py --key <key>` + `edit.py` and re-running `duplicates.py`.
+
+**Likely related entries** are judged by the agent, not by `duplicates.py`. Review suspicious pairs manually after metadata fixes. Strong clues include repeated citation keys, repeated DOIs under different keys, the same normalized title with overlapping authors, and obvious preprint→published pairs. When two entries should be linked but not auto-removed, apply a `duplicate` patch via `edit.py` to add `% bibtidy: DUPLICATE of <other_key>`. Do NOT delete or comment out near-duplicates.
 
 ## Per-Entry Checks
 
-For each `@article`, `@inproceedings`, `@book`, etc.:
+Candidates from `compare.py` expose the raw CrossRef fields (title, authors, year, journal, publisher, volume, number, pages, doi, type, url). A few gotchas when comparing:
 
-**1. Verify existence** — Search for `"<title>" <first author last name>`. If not found: `% bibtidy: NOT FOUND — verify manually`
-
-**2. Cross-check metadata** — `compare.py` runs both `crossref.py search "<title>"` and `crossref.py bibliographic "<title>"` unconditionally, plus `crossref.py doi <DOI>` when a DOI exists, deduplicating results by DOI. Only exact normalized title matches are kept. Compare title, year, authors, journal, volume, number, pages.
-
-**3. Check for published preprints** — If journal contains "arxiv"/"biorxiv"/"chemrxiv", search for published version. Update title, venue, year, volume, pages, entry type. Only update if confirmed via DOI or two independent sources.
-
-**4. Apply fixes** — DOI URL prefix stripping, page hyphen fix (`-` → `--`), year whitespace, empty field removal, author corrections, venue/year/volume/pages corrections, preprint upgrades. Missing `pages` fields are NOT flagged — some venues (e.g. NeurIPS, ICLR) intentionally omit page numbers. Only mismatched pages (both sides have values that differ) are reported. Do not add a `doi` field to an entry that lacks one.
-
-**Always apply the best-available fix.** If confidence is low (sources conflict, data incomplete, or only partial match), still apply the fix but add `% bibtidy: REVIEW — <reason>` explaining why it needs human attention.
+- Missing `pages` in the bib is not an error, some venues (NeurIPS, ICLR, etc.) omit page numbers.
+- If the bib entry is an arXiv/bioRxiv/chemRxiv preprint and a candidate is the published version, upgrade title, venue, year, volume, number, and pages together, not individually. The published title may differ substantively from the preprint (not just formatting or punctuation), so always replace the title verbatim with the candidate value rather than diffing the two.
+- Never inject a `doi` field into an entry that lacks one. Use a DOI for verification and source URLs, but do not turn a missing DOI by itself into a fix patch.
 
 ## Saving Changes
 
-- Use targeted replacements — not whole-file rewrites
+- Use targeted replacements, not whole-file rewrites
 - For large files (>30 entries), process in batches of ~15, reporting progress
-- Verify entry count before and after — must match
+- Verify entry count before and after, must match
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Missing `% bibtidy:` URL | Every changed entry needs a URL — use DOI URL or venue page |
+| Missing `% bibtidy:` URL | Every `fix` patch needs a URL, use DOI URL or venue page |
 | Incomplete commented original | Comment out ALL lines of the original, including closing `}` |
-| Adding comments to unchanged entries | Only changed entries get bibtidy comments — if compare.py reports zero mismatches and no error, do not touch the entry |
-| Rewriting entire file | Use `edit.py` with one entry or a small batch at a time; never rewrite the `.bib` file directly |
-| Deleting duplicate entries | Flag with comment only — never delete |
+| Commenting unchanged entries | If candidates confirm the bib entry, leave it alone, no bibtidy comments |
+| Deleting duplicate entries | Flag with comment only, never delete |
 | Losing `@string`/`@preamble` blocks | Preserve verbatim, don't touch |
 | Single hyphen in page ranges | Always use `--` (double hyphen) for BibTeX page ranges |
-| Partially applying title changes | When CrossRef title differs (e.g. preprint→published), replace the ENTIRE title with the CrossRef value — do not edit substrings |
-| Ignoring `number` field mismatches | `compare.py` reports `number` mismatches — apply them |
-| Adding `doi` when entry didn't have one | Never inject a `doi` field into an entry that lacks one |
-| Using agent editing tools instead of `edit.py` | Always use `edit.py` to apply changes, never edit the .bib file directly with Claude Code Edit, Codex `apply_patch`, or similar tools. Direct edits skip the commented original, URLs, and explanation |
+| Partially applying title changes | When a candidate's title differs, overwrite the title verbatim with the candidate value. Do not reinterpret the difference as a punctuation fix, a subtitle tweak, or a substring edit, replace the whole field. |
+| Using agent editing tools instead of `edit.py` | Always use `edit.py`, never edit the .bib file directly with Claude Code Edit, Codex `apply_patch`, or similar tools |
+| Building patches with a Python heredoc | Write `patches.json` via a JSON heredoc (`cat > patches.json <<'JSON' ... JSON`); Python uses `None`/`True`/`False`, JSON uses `null`/`true`/`false`, mixing them crashes the producer and leaves `edit.py` with empty stdin |
+| Double-searching an entry | Each entry has a web-search budget of 1 |
+| Forcing a fix when uncertain | After the budget is spent, add a `% bibtidy: REVIEW` comment instead of applying a guess |
 
 ## Preserve
 

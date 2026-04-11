@@ -8,6 +8,7 @@ Usage:
 
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -15,15 +16,15 @@ _TOOLS_DIR = _REPO_ROOT / "skills" / "bibtidy" / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from parser import ensure_brace_only_entries, remove_special_blocks, skip_braces  # noqa: E402
+from parser import ensure_brace_only_entries, parse_bib_entries, remove_special_blocks, skip_braces  # noqa: E402
 
 
-def read_file(path):
+def read_file(path: str) -> str:
     with open(path, encoding="utf-8") as f:
         return f.read()
 
 
-def find_entry_block(text, key):
+def find_entry_block(text: str, key: str) -> str | None:
     """Find the active (non-commented) entry for a given key.
     Returns the entry from @type{key, to its closing brace."""
     ensure_brace_only_entries(text)
@@ -38,7 +39,7 @@ def find_entry_block(text, key):
     return text[start_match.start() : end]
 
 
-def find_commented_entry(text, key):
+def find_commented_entry(text: str, key: str) -> bool:
     """Check if there is a commented-out version of this entry."""
     ensure_brace_only_entries(text)
     cleaned = remove_special_blocks(text)
@@ -47,7 +48,7 @@ def find_commented_entry(text, key):
     return bool(re.search(pattern, cleaned, re.MULTILINE))
 
 
-def get_field(entry, field):
+def get_field(entry: str, field: str) -> str | None:
     """Extract a field value from a bib entry, handling nested braces."""
     field_match = re.search(rf"{field}\s*=\s*\{{", entry, re.IGNORECASE)
     if not field_match:
@@ -58,22 +59,15 @@ def get_field(entry, field):
     return entry[field_match.end() : end - 1]
 
 
-def has_bibtidy_comment(text, key, pattern):
-    """Check if a bibtidy comment matching pattern appears near the entry.
-
-    Scans backwards from the entry to the previous non-comment, non-blank line
-    (or start of file), collecting the context region.
+def _pattern_in_context_before(search_in: str, walk_in: str, entry_pattern: str, pattern: str) -> bool:
+    """Walk backwards from an entry match over contiguous comment/blank lines
+    and test whether ``pattern`` appears in that context region.
     """
-    ensure_brace_only_entries(text)
-    cleaned = remove_special_blocks(text)
-    escaped_key = re.escape(key)
-    entry_match = re.search(rf"^[ \t]*@\w+\{{{escaped_key},", cleaned, re.MULTILINE)
+    entry_match = re.search(entry_pattern, search_in, re.MULTILINE)
     if not entry_match:
         return False
-    # Walk backwards line by line to find the context boundary
-    before = text[: entry_match.start()]
+    before = walk_in[: entry_match.start()]
     lines = before.split("\n")
-    # Remove trailing empty string from split
     if lines and lines[-1] == "":
         lines.pop()
     context_start = len(lines)
@@ -83,27 +77,40 @@ def has_bibtidy_comment(text, key, pattern):
             context_start -= 1
         else:
             break
-    context_lines = lines[context_start:]
-    region = "\n".join(context_lines)
+    region = "\n".join(lines[context_start:])
     return bool(re.search(pattern, region, re.IGNORECASE))
 
 
-def has_url(text, key):
+def has_bibtidy_comment(text: str, key: str, pattern: str) -> bool:
+    """Check if a bibtidy comment matching pattern appears near the active entry."""
+    ensure_brace_only_entries(text)
+    cleaned = remove_special_blocks(text)
+    entry_pattern = rf"^[ \t]*@\w+\{{{re.escape(key)},"
+    return _pattern_in_context_before(cleaned, text, entry_pattern, pattern)
+
+
+def has_comment_near_commented_entry(text: str, key: str, pattern: str) -> bool:
+    """Check if a comment matching pattern appears near a commented-out entry."""
+    entry_pattern = rf"^[ \t]*%\s*@\w+\{{{re.escape(key)},"
+    return _pattern_in_context_before(text, text, entry_pattern, pattern)
+
+
+def has_url(text: str, key: str) -> bool:
     """Check that a bibtidy URL comment exists near the entry."""
     return has_bibtidy_comment(text, key, r"% bibtidy: https?://")
 
 
 class TestResult:
-    def __init__(self, name):
+    def __init__(self, name: str) -> None:
         self.name = name
-        self.checks = []
+        self.checks: list[tuple[str, str]] = []
 
-    def check(self, condition, description):
+    def check(self, condition: bool, description: str) -> bool:
         status = "PASS" if condition else "FAIL"
         self.checks.append((status, description))
         return condition
 
-    def print_results(self):
+    def print_results(self) -> bool:
         all_passed = all(s == "PASS" for s, _ in self.checks)
         icon = "OK" if all_passed else "FAIL"
         print(f"\n[{icon}] {self.name}")
@@ -113,8 +120,8 @@ class TestResult:
         return all_passed
 
 
-def check_correct_entry_unchanged(text):
-    """Correct entry should be left unchanged — no comments, no modifications."""
+def check_correct_entry_unchanged(text: str) -> TestResult:
+    """Correct entry should be left unchanged, no comments, no modifications."""
     t = TestResult("Correct entry unchanged (vaswani2017attention)")
     entry = find_entry_block(text, "vaswani2017attention")
     t.check(entry is not None, "Entry still exists")
@@ -128,7 +135,7 @@ def check_correct_entry_unchanged(text):
     return t
 
 
-def check_wrong_author_fixed(text):
+def check_wrong_author_fixed(text: str) -> TestResult:
     """Wrong co-author should be removed with commented original + source."""
     t = TestResult("Wrong co-author fixed (hyvarinen2005estimation)")
     entry = find_entry_block(text, "hyvarinen2005estimation")
@@ -144,7 +151,7 @@ def check_wrong_author_fixed(text):
     return t
 
 
-def check_arxiv_upgraded_to_published(text):
+def check_arxiv_upgraded_to_published(text: str) -> TestResult:
     """arXiv preprint should be upgraded to published venue."""
     t = TestResult("arXiv upgraded to published venue (lipman2022flow)")
     entry = find_entry_block(text, "lipman2022flow")
@@ -162,7 +169,7 @@ def check_arxiv_upgraded_to_published(text):
     return t
 
 
-def check_formatting_fixes_applied(text):
+def check_formatting_fixes_applied(text: str) -> TestResult:
     """DOI prefix should be stripped, page hyphens fixed."""
     t = TestResult("Formatting fixes applied (ho2020denoising)")
     entry = find_entry_block(text, "ho2020denoising")
@@ -179,7 +186,7 @@ def check_formatting_fixes_applied(text):
     return t
 
 
-def check_duplicates_flagged(text):
+def check_duplicates_flagged(text: str) -> TestResult:
     """bioRxiv + published pair should be flagged as duplicates, published entry fixed."""
     t = TestResult("Duplicate pair flagged (watson2022broadly / watson2023novo)")
     t.check(
@@ -203,7 +210,7 @@ def check_duplicates_flagged(text):
     return t
 
 
-def check_wrong_pages_fixed(text):
+def check_wrong_pages_fixed(text: str) -> TestResult:
     """Wrong page numbers should be corrected via CrossRef."""
     t = TestResult("Wrong page numbers fixed (strudel2021segmenter)")
     entry = find_entry_block(text, "strudel2021segmenter")
@@ -218,7 +225,7 @@ def check_wrong_pages_fixed(text):
     return t
 
 
-def check_title_change_upgraded(text):
+def check_title_change_upgraded(text: str) -> TestResult:
     """arXiv preprint with title change should be upgraded with new title."""
     t = TestResult("Published title change applied (khader2022medical)")
     entry = find_entry_block(text, "khader2022medical")
@@ -235,33 +242,7 @@ def check_title_change_upgraded(text):
     return t
 
 
-def has_comment_near_commented_entry(text, key, pattern):
-    """Check if a comment matching pattern appears near a commented-out entry.
-
-    Scans backwards from the commented entry line, collecting comment/blank
-    lines until a non-comment, non-blank line (or start of file) is reached.
-    """
-    escaped_key = re.escape(key)
-    entry_match = re.search(rf"^[ \t]*%\s*@\w+\{{{escaped_key},", text, re.MULTILINE)
-    if not entry_match:
-        return False
-    before = text[: entry_match.start()]
-    lines = before.split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()
-    context_start = len(lines)
-    while context_start > 0:
-        line = lines[context_start - 1]
-        if line.startswith("%") or line.strip() == "":
-            context_start -= 1
-        else:
-            break
-    context_lines = lines[context_start:]
-    region = "\n".join(context_lines)
-    return bool(re.search(pattern, region, re.IGNORECASE))
-
-
-def check_hallucinated_entry_flagged(text):
+def check_hallucinated_entry_flagged(text: str) -> TestResult:
     """Hallucinated entry should be commented out and flagged as NOT FOUND."""
     t = TestResult("Hallucinated entries flagged as NOT FOUND")
     keys = ["wang2021identity"]
@@ -272,7 +253,7 @@ def check_hallucinated_entry_flagged(text):
     return t
 
 
-def check_hallucinated_metadata_fixed(text):
+def check_hallucinated_metadata_fixed(text: str) -> TestResult:
     """Entry with real paper but wrong title/authors should be corrected."""
     t = TestResult("Hallucinated metadata fixed (aichberger2025semantically)")
     entry = find_entry_block(text, "aichberger2025semantically")
@@ -288,7 +269,7 @@ def check_hallucinated_metadata_fixed(text):
     return t
 
 
-def check_author_expansion(text):
+def check_author_expansion(text: str) -> TestResult:
     """Author list with 'and others' should be expanded with commented original + source."""
     t = TestResult("Author list expanded (kirillov2023segment)")
     entry = find_entry_block(text, "kirillov2023segment")
@@ -303,7 +284,38 @@ def check_author_expansion(text):
     return t
 
 
-def check_published_article_not_downgraded(text):
+def check_subset_duplicate_flagged(text: str) -> TestResult:
+    """Subset duplicate kirillov entry should be commented out with a DUPLICATE marker.
+
+    Expected.bib has two commented kirillov entries: the subset (flagged as
+    duplicate) and the pre-expansion original of the surviving full entry.
+    """
+    t = TestResult("Subset duplicate flagged (kirillov2023segment)")
+    commented = re.findall(r"^[ \t]*%\s*@\w+\{kirillov2023segment,", text, re.MULTILINE)
+    t.check(len(commented) >= 2, f"At least two commented kirillov2023segment entries (found {len(commented)})")
+    t.check(
+        has_comment_near_commented_entry(text, "kirillov2023segment", r"[Dd][Uu][Pp][Ll][Ii][Cc][Aa][Tt][Ee]"),
+        "DUPLICATE marker near commented kirillov entry",
+    )
+    return t
+
+
+def check_shad2023_updated_to_published(text: str) -> TestResult:
+    """Conference abstract should be updated to published Nature Biomedical Engineering version."""
+    t = TestResult("Outdated abstract updated (shad2023generalizable)")
+    entry = find_entry_block(text, "shad2023generalizable")
+    t.check(entry is not None, "Entry still exists")
+    t.check(find_commented_entry(text, "shad2023generalizable"), "Original entry commented out")
+    if entry:
+        journal = get_field(entry, "journal") or ""
+        t.check("Nature Biomedical Engineering" in journal, "Journal updated to Nature Biomedical Engineering")
+        t.check("Circulation" not in journal, "Old Circulation journal removed")
+        author = get_field(entry, "author") or ""
+        t.check("Mathur" in author, "Expanded authors include Mathur")
+    return t
+
+
+def check_published_article_not_downgraded(text: str) -> TestResult:
     """Published article should not be downgraded to a preprint."""
     t = TestResult("Published article not downgraded (tzou2022coronavirus)")
     entry = find_entry_block(text, "tzou2022coronavirus")
@@ -319,25 +331,33 @@ def check_published_article_not_downgraded(text):
     return t
 
 
-def test_entry_count(text):
+def test_entry_count(text: str) -> TestResult:
     """Entry count should be preserved (bibtidy never deletes entries)."""
     t = TestResult("Entry count preserved")
     cleaned = remove_special_blocks(text)
     cleaned = re.sub(r"(?m)^[ \t]*%.*$", "", cleaned)
     all_at = re.findall(r"^[ \t]*@(\w+)\{", cleaned, re.MULTILINE)
-    t.check(len(all_at) == 11, f"Expected 11 active entries, found {len(all_at)}")
+    t.check(len(all_at) == 12, f"Expected 12 active entries, found {len(all_at)}")
     return t
 
 
-def test_special_blocks(text):
-    """@string and @preamble blocks should be preserved verbatim."""
-    t = TestResult("Special blocks preserved (@string, @preamble)")
-    t.check("@string{neurips" in text or "@string{neurips" in text.lower(), "@string{neurips} block present")
+def test_no_duplicate_active_keys(text: str) -> TestResult:
+    """No two active entries may share a citation key (BibTeX forbids this)."""
+    t = TestResult("No duplicate active citation keys")
+    keys = [e["key"] for e in parse_bib_entries(text)]
+    duplicates = sorted(k for k, n in Counter(keys).items() if n > 1)
+    t.check(not duplicates, f"Duplicate active keys: {duplicates}" if duplicates else "All active keys unique")
+    return t
+
+
+def test_special_blocks(text: str) -> TestResult:
+    """@preamble blocks should be preserved verbatim."""
+    t = TestResult("Special blocks preserved (@preamble)")
     t.check("@preamble{" in text.lower(), "@preamble block present")
     return t
 
 
-def main():
+def main() -> None:
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <output.bib>")
         sys.exit(1)
@@ -351,7 +371,11 @@ def main():
 
     tests = [
         test_entry_count(text),
+        test_no_duplicate_active_keys(text),
         test_special_blocks(text),
+        # Order below matches entry order in fixtures/input.bib
+        check_hallucinated_entry_flagged(text),
+        check_hallucinated_metadata_fixed(text),
         check_correct_entry_unchanged(text),
         check_wrong_author_fixed(text),
         check_arxiv_upgraded_to_published(text),
@@ -359,10 +383,10 @@ def main():
         check_duplicates_flagged(text),
         check_wrong_pages_fixed(text),
         check_title_change_upgraded(text),
-        check_hallucinated_metadata_fixed(text),
+        check_subset_duplicate_flagged(text),
         check_author_expansion(text),
         check_published_article_not_downgraded(text),
-        check_hallucinated_entry_flagged(text),
+        check_shad2023_updated_to_published(text),
     ]
 
     print("=" * 50)

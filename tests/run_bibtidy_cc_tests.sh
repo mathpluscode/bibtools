@@ -55,6 +55,7 @@ echo ""
 START_TIME=$SECONDS
 
 claude -p "/bibtidy $GOT" \
+    --model claude-opus-4-6 \
     --allowedTools "Agent" "Bash(curl *)" "Bash(python3 *)" "Bash(cp *)" "Bash(rm *)" "Read" "Edit" "Write" "Glob" "Grep" "WebSearch" "WebFetch" \
     --verbose 2>&1
 

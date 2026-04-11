@@ -97,11 +97,9 @@ def apply_patch(raw_entry: str, parsed_entry: dict[str, str], patch: dict) -> st
     if action != "fix":
         raise ValueError(f"Unknown action: {action}")
 
-    # --- action == "fix" ---
     entry_type = patch.get("entry_type", parsed_entry["entry_type"])
     key = parsed_entry["key"]
 
-    # Build final field dict
     original_order = _extract_field_order(raw_entry)
     fields = {}
     for f in original_order:
@@ -116,7 +114,6 @@ def apply_patch(raw_entry: str, parsed_entry: dict[str, str], patch: dict) -> st
 
     field_order = _compute_field_order(original_order, fields)
 
-    # Assemble replacement
     commented = comment_out(raw_entry)
     meta = []
     for url in sorted(set(patch.get("urls", []))):

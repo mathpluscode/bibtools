@@ -96,6 +96,7 @@ class TestFindCommentedEntry:
         text = "%   @article{Smith2020,\n%     title={Old},\n%   }\n@article{Smith2020,\n  title={New}\n}"
         assert find_commented_entry(text, "Smith2020") is True
 
+
 class TestGetField:
     def test_simple_field(self):
         assert get_field(SAMPLE_ENTRY, "year") == "2020"

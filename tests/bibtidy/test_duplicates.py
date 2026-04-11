@@ -199,8 +199,7 @@ class TestFindKeyCollisions:
 
     def test_same_key_non_subset_flagged(self):
         bib = (
-            "@article{A, title={Paper}, year={2020}, volume={1}}\n"
-            "@article{A, title={Paper}, year={2020}, volume={2}}\n"
+            "@article{A, title={Paper}, year={2020}, volume={1}}\n@article{A, title={Paper}, year={2020}, volume={2}}\n"
         )
         assert find_key_collisions(bib) == [("A", [1, 2])]
 
@@ -209,17 +208,13 @@ class TestFindKeyCollisions:
         assert find_key_collisions(bib) == [("A", [1, 2])]
 
     def test_commented_entry_ignored(self):
-        bib = (
-            "% @article{A, title={Old}, year={2019}}\n"
-            "@article{A, title={New}, year={2020}}\n"
-        )
+        bib = "% @article{A, title={Old}, year={2019}}\n@article{A, title={New}, year={2020}}\n"
         assert find_key_collisions(bib) == []
 
     def test_cli_reports_collision_warning(self, tmp_path):
         bib_file = tmp_path / "test.bib"
         bib_file.write_text(
-            "@article{A, title={Paper}, year={2020}, volume={1}}\n"
-            "@article{A, title={Paper}, year={2020}, volume={2}}\n"
+            "@article{A, title={Paper}, year={2020}, volume={1}}\n@article{A, title={Paper}, year={2020}, volume={2}}\n"
         )
         result = subprocess.run([sys.executable, TOOL_PATH, str(bib_file)], capture_output=True, text=True)
         assert result.returncode == 0

@@ -268,6 +268,8 @@
 <div class="container">
 <p class="intro">bibtidy cross-checks BibTeX entries against Google Scholar, CrossRef, and conference/journal sites. It upgrades arXiv/bioRxiv preprints to published versions (even when the title changed upon publication), corrects metadata (authors, pages, venues), and flags duplicate entries.</p>
 
+<p class="intro"><strong>Note:</strong> bibtidy's output is non-deterministic. The same <code>.bib</code> file can yield different fixes across runs, and Claude Code and Codex may reach different conclusions on the same entry, due to variability in search results, LLM sampling, and differences between the two agents' underlying models. Every change ships with <code>% bibtidy:</code> URLs for verification &mdash; treat the output as a reviewed first draft, not a final answer.</p>
+
 <div class="section">
   <div class="demo">
     <img src="bibtidy_demo.gif" alt="bibtidy demo" width="1600" height="1200">

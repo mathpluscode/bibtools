@@ -63,6 +63,8 @@ Or in Claude Code, use the slash command: `/bibtidy refs.bib`
 
 bibtidy verifies each entry against [Google Scholar](https://scholar.google.com/) and [CrossRef](https://search.crossref.org/), fixes errors, and upgrades stale preprints to published versions. Every change includes the original entry commented out above so you can compare or revert, plus one or more `% bibtidy:` URL lines for verification. We recommend using git to track changes. If using [Overleaf](https://www.overleaf.com/), this can be done with [git sync](https://docs.overleaf.com/integrations-and-add-ons/git-integration-and-github-synchronization). To remove bibtidy comments after review, ask your agent to remove all `bibtidy` comments from the file.
 
+bibtidy's output is non-deterministic: the same `.bib` file can yield different fixes across runs, and Claude Code and Codex may reach different conclusions on the same entry. See the [FAQ](#bibtidy) for why, and always verify changes via the `% bibtidy:` URLs before accepting them.
+
 Note that bibtidy assumes standard brace-style BibTeX like `@article{...}`. Parenthesized forms like `@article(...)` are not supported. Special blocks such as `@string`, `@preamble`, and `@comment` are ignored by the parser.
 
 ### How it works
@@ -407,6 +409,16 @@ bibtidy needs to search Google Scholar, CrossRef, and conference/journal sites. 
 **How can I trust bibtidy's output?**
 
 You shouldn't, and that's by design. The point of bibtidy is to surface potential hallucinations and errors in your bibliography. For every changed entry, bibtidy includes a `% bibtidy:` URL so you can verify the correction yourself. Entries marked unchanged are very likely correct, but not guaranteed. Always check the provided links before accepting changes.
+
+**Why do I get different results on different runs, or between Claude Code and Codex?**
+
+bibtidy is non-deterministic. Running it twice on the same `.bib` file can produce different fixes, and Claude Code and Codex may reach different conclusions on the same entry. There are a few reasons for this:
+
+- Search results vary between queries. Google Scholar and CrossRef can return slightly different candidate sets for the same title, and the web itself changes over time as new publications, DOIs, and venue pages appear.
+- Agent decisions depend on LLM sampling, which is stochastic. Given ambiguous evidence (e.g. a preprint with a near-match published version), different runs may land on `fix`, `review`, or `unchanged`.
+- Claude Code and Codex use different underlying models with different tool surfaces, so their web-search behavior and judgment thresholds differ.
+
+This is why every change ships with `% bibtidy:` URLs: you should treat bibtidy's output as a reviewed first draft, not a final answer. Re-running on an already-tidied file is safe, and a second pass sometimes catches issues missed in the first.
 
 **How does bibtidy compare to other tools?**
 

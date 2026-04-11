@@ -99,9 +99,7 @@ def find_key_collisions(text: str) -> list[tuple[str, list[int]]]:
         groups.setdefault(key, []).append(start)
 
     collisions = [
-        (key, [text.count("\n", 0, s) + 1 for s in starts])
-        for key, starts in groups.items()
-        if len(starts) >= 2
+        (key, [text.count("\n", 0, s) + 1 for s in starts]) for key, starts in groups.items() if len(starts) >= 2
     ]
     collisions.sort(key=lambda c: c[1][0])
     return collisions
